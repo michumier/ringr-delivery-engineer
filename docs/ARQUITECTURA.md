@@ -2,6 +2,8 @@
 
 Propuesta de diseño para la prueba técnica. Parte de `REQUISITOS.md` y de las decisiones de `DECISIONES.md` (que mandan). Los puntos marcados como **PC-n** son decisiones de diseño **pendientes de Miguel**: cada uno trae opciones, pros y contras y una recomendación, pero nada está decidido hasta que él elija.
 
+> ⚠️ **Estado (14-nov):** todos los PC están decididos (ver cada «Decisión de Miguel» y `DECISIONES.md`), y el plan de construcción (§8) ya tiene el orden elegido. El resto del documento todavía describe la propuesta original en algunos puntos (p. ej. reintentos dentro de `HttpActionSender` en vez del Decorador `RetryingHttpClient` de PC-7.1). Hay que actualizarlo antes de construir.
+
 Criterio general: **simple antes que sofisticado**. Cada clase existe porque la pide un requisito o una decisión de Miguel; al lado de cada una se dice cuál.
 
 ---
@@ -371,7 +373,7 @@ Las flechas van siempre hacia piezas más pequeñas y genéricas; ninguna pieza 
   - Contras: lanza excepción al primer campo inválido, y AMB-2 pide descartar campo a campo y seguir; reglas repetidas entre agentes.
 - **Recomendación: A.** Encaja con la «forma C» de AMB-3 («cada campo con su propia pieza y cada agente declara sus campos») y es el ejemplo más claro de Estrategia del proyecto.
 
-**Decisión de Miguel:** _pendiente_
+**Decisión de Miguel:** ✅ **A** (ver `DECISIONES.md`).
 
 ### PC-4. Cómo se inyecta «hoy» para poder probar las fechas pasadas
 
@@ -386,7 +388,7 @@ Las flechas van siempre hacia piezas más pequeñas y genéricas; ninguna pieza 
   - Contras: `date` no se puede parchear fácilmente (es tipo de C); las fechas lejanas no prueban el borde «hoy vale / ayer no».
 - **Recomendación: A.** Es lo mínimo que permite probar el borde exacto que Miguel decidió (hoy sí, ayer no).
 
-**Decisión de Miguel:** _pendiente_
+**Decisión de Miguel:** ✅ **A** (ver `DECISIONES.md`).
 
 ### PC-5. Dónde vive el control de duplicados y qué es exactamente la «huella»
 
@@ -418,7 +420,7 @@ Dos preguntas.
   - Contras: más lógica; con PC-5 A, un mismo dato reenviado tras fallo reutiliza clave (bien), pero hay que explicar cuándo cambia.
 - **Recomendación: A.** Es lo que Miguel describió en AMB-4 y lo más fácil de defender; el caso «falló todo y se repite en otro turno» se explica en el README.
 
-**Decisión de Miguel:** _pendiente_
+**Decisión de Miguel:** ✅ **A**, UUID (ver `DECISIONES.md`).
 
 ### PC-7. Dónde viven los reintentos y qué cuenta como «reintentable»
 
@@ -432,7 +434,7 @@ Dos preguntas.
 - **B. No contemplarlos (fuera de alcance, solo códigos de estado).** Pros: más simple. Contras: con un cliente real, una excepción tiraría el turno, contra AMB-4/AMB-11.
 - **Recomendación: A**, capturando una excepción propia `TransportError` que lanzaría cualquier cliente real (y que el fake puede simular).
 
-**Decisión de Miguel:** _pendiente_
+**Decisión de Miguel:** 7.1 ✅ **B**, Decorador `RetryingHttpClient`. 7.2 ✅ **A** (delegada en Claude). Ver `DECISIONES.md`.
 
 ### PC-8. La respuesta se genera antes de enviar: ¿qué pasa si el envío falla?
 
@@ -468,7 +470,7 @@ Dos preguntas que van con esta:
   - Contras: imposible probar sin parches; acopla el agente al HTTP; contradice «testeable».
 - **Recomendación: B.**
 
-**Decisión de Miguel:** _pendiente_
+**Decisión de Miguel:** ✅ **B** (delegada en Claude; ver `DECISIONES.md`).
 
 ### PC-10. Dónde va la configuración (URLs, token, reintentos)
 
@@ -483,7 +485,7 @@ Dos preguntas que van con esta:
   - Contras: el agente ya no se entiende leyendo su archivo; añadir un agente toca dos sitios.
 - **Recomendación: B.** Lo dice el enunciado (cada agente tiene su endpoint) y deja el token fuera del código cuando haga falta.
 
-**Decisión de Miguel:** _pendiente_
+**Decisión de Miguel:** ✅ **B** (ver `DECISIONES.md`).
 
 ### PC-11. Cómo se redondea el importe a céntimos
 
@@ -493,7 +495,7 @@ Detalle de dinero: `round(2.675, 2)` en Python da `2.67`, porque el `float` 2.67
 - **C. `Decimal` en todo el sistema y en el JSON como texto (`"150.50"`).** Pros: lo más correcto para dinero. Contras: contradice el tipo `float` del enunciado y cambia el body de AMB-10.
 - **Recomendación: B.**
 
-**Decisión de Miguel:** _pendiente_
+**Decisión de Miguel:** ✅ **B** (delegada en Claude; ver `DECISIONES.md`).
 
 ### PC-12. Cuándo se codifican los valores de las cabeceras
 
@@ -502,7 +504,7 @@ AMB-7 decidió codificar los valores no ASCII (`Cambiar%20direcci%C3%B3n`). Falt
 - **B. Solo si el valor tiene algún carácter no ASCII.** Pros: los valores simples quedan legibles. Contras: el receptor no sabe si tiene que decodificar; un `%` literal en un texto ASCII se malinterpretaría.
 - **Recomendación: A.** Fechas e importes no cambian (no tienen caracteres especiales), y la regla es una sola.
 
-**Decisión de Miguel:** _pendiente_
+**Decisión de Miguel:** ✅ **A** (delegada en Claude; ver `DECISIONES.md`).
 
 ---
 
@@ -605,20 +607,17 @@ Casi todo se prueba con **fakes** (objetos reales simplificados) en lugar de **m
 
 ## 8. Plan de construcción
 
-De dentro hacia fuera. Cada paso es una rama y una PR hacia `main` que se fusiona con el CI en verde (FLU-1). Al acabar cada paso, todo lo anterior sigue pasando.
+Orden decidido por Miguel (ver `PLAN` en `DECISIONES.md`): **primero un camino completo y luego se enriquece**. Cada paso es una rama y una PR hacia `main` que se fusiona con el CI en verde (FLU-1). Al acabar cada paso, todo lo anterior sigue pasando.
 
 | # | Paso | Queda funcionando y probado |
 |---|---|---|
 | 1 | **Esqueleto + CI:** `pyproject.toml`, `src/ringr_agents/__init__.py`, `.gitignore`, `.github/workflows/ci.yml` (ruff + pytest), `tests/conftest.py` con el bloqueo de red y un test trivial. | `ruff` y `pytest` pasan en local y en GitHub Actions. |
-| 2 | **Modelos simulados** (`models.py`). | Guiones, copia, error al agotarse, excepción en guion. |
-| 3 | **Normalizadores** (`fields.py`): `TextField`, `DateField`, `AmountField`, `normalize`. | Todas las reglas de AMB-2 y AMB-3, con el borde de «hoy». |
-| 4 | **HTTP simulado** (`http.py`) y **resultados** (`results.py`). | `FakeHttpClient` guarda requests y devuelve códigos configurables. |
-| 5 | **Construcción de la request** (`sender.py`: `build_request`, `Settings` en `config.py`). | URL, cabeceras (Bearer, Content-Type, Idempotency-Key, campos codificados) y body exactos. |
-| 6 | **Envío con reintentos** (`HttpActionSender.send`, `RetryPolicy`). | 2xx / 4xx / 5xx / reintentos / misma clave / esperas. |
-| 7 | **Duplicados** (`dedup.py`). | Huella y registro. |
-| 8 | **`BaseAgent.handle_turn`** con un agente de prueba. | El ciclo completo, fallos de modelos, PC-8, sin excepciones hacia fuera, CA-13. |
-| 9 | **`DebtAgent` y `AssistanceAgent`.** | CA-1 a CA-12 de punta a punta. |
-| 10 | **Demo** (`__main__.py`). | `python -m ringr_agents` muestra varios turnos (feliz, duplicado, corrección, fallo con reintento) y su log. |
+| 2 | **Modelos simulados** (`models.py`) y **normalizadores** (`fields.py`: `TextField`, `DateField`, `AmountField`, `normalize`). | Guiones con error al agotarse; todas las reglas de AMB-2 y AMB-3, con el borde de «hoy». |
+| 3 | **HTTP simulado** (`http.py`), **resultados** (`results.py`) y **construcción de la request** (`sender.py`, `Settings` en `config.py`). | `FakeHttpClient` guarda requests y devuelve códigos configurables; URL, cabeceras (Bearer, Content-Type, Idempotency-Key, campos codificados) y body exactos. Sin reintentos. |
+| 4 | **`BaseAgent.handle_turn`, `DebtAgent` y `AssistanceAgent`.** | ✅ Los dos agentes de punta a punta (CA-1 a CA-12 salvo duplicados y reintentos), fallos de modelos, PC-8, sin excepciones hacia fuera. **Desde aquí hay algo entregable.** |
+| 5 | **Duplicados** (`dedup.py`) integrados en `handle_turn`. | Huella y registro; no se reenvía lo idéntico. |
+| 6 | **Reintentos con el Decorador** (`RetryingHttpClient`, `RetryPolicy`). | 3 intentos, solo 5xx y errores de transporte, esperas crecientes, misma clave. **Sin tocar `handle_turn` ni los agentes.** |
+| 7 | **Demo** (`__main__.py`). | `python -m ringr_agents` muestra varios turnos (feliz, duplicado, corrección, fallo con reintento) y su log. |
 
 Después: verificación, revisión y README (fases 4 y 5 del flujo).
 
