@@ -12,7 +12,7 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff"]
+dev = ["pytest>=8,<10", "ruff>=0.8,<1"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
