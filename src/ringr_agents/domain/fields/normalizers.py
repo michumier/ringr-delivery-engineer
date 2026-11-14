@@ -4,7 +4,7 @@ import math
 import re
 from collections.abc import Callable
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from ringr_agents.domain.fields.base import InvalidFieldError
 
@@ -29,7 +29,7 @@ class TextField:
     """Texto libre: sin espacios sobrantes; vacío -> `None`."""
 
     def normalize(self, raw: object) -> str | None:
-        return _clean_text(raw, "el texto")
+        return _clean_text(raw, "el campo")
 
 
 class DateField:
@@ -62,7 +62,11 @@ class AmountField:
         if amount is None:
             return None
         # ROUND_HALF_UP con Decimal: `round()` sobre float da 2.67 para 2.675.
-        rounded = amount.quantize(_CENTS, rounding=ROUND_HALF_UP)
+        try:
+            rounded = amount.quantize(_CENTS, rounding=ROUND_HALF_UP)
+        except InvalidOperation as exc:
+            # Más de 28 cifras: no cabe en la precisión de `Decimal`; se descarta (AMB-2).
+            raise InvalidFieldError("el importe es demasiado grande") from exc
         if rounded <= 0:
             raise InvalidFieldError("el importe debe ser mayor que 0")
         return float(rounded)

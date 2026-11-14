@@ -2,6 +2,7 @@
 
 import math
 from datetime import date
+from decimal import Decimal
 
 import pytest
 
@@ -101,14 +102,8 @@ class TestDateField:
             field.normalize("2029-12-31")
 
     def test_default_today_is_the_system_date(self):
-        """PC-4: sin inyección se usa la fecha real: hoy vale y ayer falla."""
-        field = DateField()
-        today = date.today()
-        yesterday = date.fromordinal(today.toordinal() - 1)
-
-        assert field.normalize(today.isoformat()) == today.isoformat()
-        with pytest.raises(InvalidFieldError):
-            field.normalize(yesterday.isoformat())
+        """PC-4: sin inyección, «hoy» es la fecha del sistema (`date.today`)."""
+        assert DateField()._today == date.today
 
 
 class TestAmountField:
@@ -174,12 +169,18 @@ class TestAmountField:
         with pytest.raises(InvalidFieldError, match="finito"):
             AmountField().normalize(raw)
 
+    @pytest.mark.parametrize("raw", [1e30, 10**30, "9" * 30])
+    def test_huge_amount_is_invalid_instead_of_breaking(self, raw):
+        """AMB-2: un importe que no cabe en la precisión de `Decimal` se descarta, no rompe."""
+        with pytest.raises(InvalidFieldError, match="demasiado grande"):
+            AmountField().normalize(raw)
+
     @pytest.mark.parametrize("raw", ["", "   ", None])
     def test_empty_amount_becomes_none(self, raw):
         """AMB-3: vacío pasa a `None`."""
         assert AmountField().normalize(raw) is None
 
-    @pytest.mark.parametrize("raw", [[150], {"a": 1}, (1,), b"150"])
+    @pytest.mark.parametrize("raw", [[150], {"a": 1}, (1,), b"150", Decimal("150")])
     def test_unsupported_types_are_invalid(self, raw):
         """AMB-2: tipos que no son número ni texto se descartan."""
         with pytest.raises(InvalidFieldError, match="tipo"):
