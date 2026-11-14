@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ringr-agents"
+version = "0.1.0"
+description = "Prueba técnica de Ringr: agentes conversacionales con modelos y HTTP simulados."
+readme = "README.md"
+requires-python = ">=3.11"
+# Sin dependencias de ejecución: solo la librería estándar (AMB-9).
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# Los bloques de código de docs/ son esquemas de diseño, no código ejecutable.
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
