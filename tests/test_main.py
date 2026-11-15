@@ -73,6 +73,17 @@ def test_la_salida_muestra_turnos_y_titulos_y_no_contiene_el_token(demo):
     assert DEFAULT_API_TOKEN not in output
 
 
+def test_la_salida_ensena_la_ultima_peticion_con_el_token_tapado(demo):
+    """Revisión de la PR 7 y PC-10: se ve la request (URL, cabeceras y body) sin el token."""
+    _, _, output = demo
+
+    assert "Última petición: POST https://api.ringr.debt/v1/commitment" in output
+    assert "Authorization: Bearer ***" in output
+    assert "committed_amount: 200.0" in output
+    assert 'Body: {"commitment_date": "2026-12-01", "committed_amount": 200.0}' in output
+    assert "Última petición: POST https://api.ringr.assistance/v1/request" in output
+
+
 def test_el_log_de_la_demo_no_contiene_el_token(caplog):
     """PC-10: ningún registro INFO de la demo incluye el token."""
     caplog.set_level(logging.INFO)

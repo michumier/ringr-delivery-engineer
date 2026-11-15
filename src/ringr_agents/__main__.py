@@ -19,13 +19,14 @@ from ringr_agents.infrastructure.http import (
     FakeHttpClient,
     HttpActionSender,
     HttpClient,
+    HttpRequest,
     RetryingHttpClient,
     RetryPolicy,
     TransportError,
 )
 from ringr_agents.infrastructure.models import ConversationModel, ParserModel
 
-# «Hoy» fijo: así la demo da siempre la misma salida, se ejecute el día que se ejecute.
+# «Hoy» fijo: así la demo da los mismos resultados, se ejecute el día que se ejecute.
 DEMO_TODAY = date(2026, 11, 15)
 
 # Un turno del guion: lo que dice el modelo de conversación y lo que extrae el parser.
@@ -111,7 +112,21 @@ def run_conversation(
         for error in result.errors:
             print(f"  Error     : {error}", file=out)
     print(f"\nPeticiones que recibió el servidor simulado: {len(fake.requests)}", file=out)
+    if fake.requests:
+        print_request(fake.requests[-1], out)
     return results
+
+
+def print_request(request: HttpRequest, out: TextIO) -> None:
+    """Enseña la última request (URL, cabeceras y body) con el token tapado.
+
+    Es solo la presentación de la demo: el log de cada envío no cambia (AMB-10).
+    """
+    print(f"Última petición: {request.method} {request.url}", file=out)
+    for name, value in request.headers.items():
+        shown = "Bearer ***" if name == "Authorization" else value
+        print(f"  {name}: {shown}", file=out)
+    print(f"  Body: {request.body}", file=out)
 
 
 def run_demo(
