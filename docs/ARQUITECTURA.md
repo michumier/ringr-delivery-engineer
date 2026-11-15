@@ -222,7 +222,7 @@ class RetryPolicy:
     sleep: Callable[[float], None] = time.sleep
 
 class RetryingHttpClient:
-    def __init__(self, inner: HttpClient, policy: RetryPolicy = RetryPolicy()) -> None: ...
+    def __init__(self, inner: HttpClient, policy: RetryPolicy | None = None) -> None: ...  # None → RetryPolicy()
     def send(self, request: HttpRequest) -> HttpResponse: ...
 ```
 Solo lo nombra la raíz de composición; ni el agente ni `HttpActionSender` saben que existe. Qué se reintenta: ver AMB-4 y PC-7.2.
