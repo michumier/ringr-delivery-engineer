@@ -11,8 +11,12 @@ def fingerprint(action_name: str, data: Mapping[str, object | None]) -> Fingerpr
 
     Los campos se ordenan por nombre para que el orden del diccionario no cambie la huella.
     Como los datos ya están limpios, `"150"` y `150` dan la misma huella (los dos son `150.0`).
+    Los valores tienen que ser hashables para poder guardar la huella en un `set`: hoy los
+    normalizadores devuelven `str`, `float` o `None`, y un campo nuevo debe seguir así.
     """
-    return (str(action_name), tuple(sorted((str(name), value) for name, value in data.items())))
+    items = ((str(name), value) for name, value in data.items())
+    # Se ordena solo por el nombre: así nunca se comparan valores (None frente a float fallaría).
+    return (str(action_name), tuple(sorted(items, key=lambda item: item[0])))
 
 
 class SentActionRegistry:

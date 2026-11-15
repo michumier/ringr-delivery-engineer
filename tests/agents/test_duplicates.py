@@ -7,7 +7,7 @@ import pytest
 from ringr_agents.agents import AssistanceAgent, DebtAgent
 from ringr_agents.domain.constants import EMERGENCY_REPLY
 from ringr_agents.domain.dedup import SentActionRegistry, fingerprint
-from ringr_agents.domain.enums import ActionName, ActionStatus
+from ringr_agents.domain.enums import ActionName, ActionStatus, TurnError
 
 DEBT = {"commitment_date": "2026-12-01", "committed_amount": 150.0}
 EMPTY_DEBT = {"commitment_date": None, "committed_amount": None}
@@ -151,14 +151,32 @@ class TestFailuresAndNotRequired:
         assert second.action_status is ActionStatus.SENT
         assert len(client.requests) == 1
 
-    def test_not_required_turn_leaves_the_registry_empty(self, make_debt):
-        """PC-5 y PC-9: tras un NOT_REQUIRED el registro inyectado sigue vacío."""
+    def test_only_the_sent_turn_is_marked_in_the_registry(self, make_debt):
+        """PC-5 y PC-9: el NOT_REQUIRED no deja huella; el SENT siguiente sí, y solo el suyo."""
         registry = SentActionRegistry()
-        agent, _ = make_debt(["a"], [EMPTY_DEBT], registry=registry)
+        agent, _ = make_debt(["a", "b"], [EMPTY_DEBT, DEBT], registry=registry)
+
+        first = agent.handle_turn()
+        assert registry.was_sent(fingerprint(ActionName.REGISTER_COMMITMENT, EMPTY_DEBT)) is False
+
+        second = agent.handle_turn()
+
+        assert first.action_status is ActionStatus.NOT_REQUIRED
+        assert second.action_status is ActionStatus.SENT
+        assert registry.was_sent(fingerprint(ActionName.REGISTER_COMMITMENT, DEBT)) is True
+        assert registry.was_sent(fingerprint(ActionName.REGISTER_COMMITMENT, EMPTY_DEBT)) is False
+
+    def test_a_model_failure_is_checked_before_duplicates(self, make_debt):
+        """PC-8.2 y AMB-11: con la conversación caída se decide antes que mirar duplicados."""
+        agent, client = make_debt(["Anotado.", RuntimeError("caído")], [DEBT, DEBT])
 
         agent.handle_turn()
+        second = agent.handle_turn()
 
-        assert registry.was_sent(fingerprint(ActionName.REGISTER_COMMITMENT, EMPTY_DEBT)) is False
+        assert second.action_status is ActionStatus.NOT_REQUIRED
+        assert second.reply == EMERGENCY_REPLY
+        assert second.errors == (TurnError.CONVERSATION_FAILED,)
+        assert len(client.requests) == 1
 
 
 class TestInjectedRegistry:
