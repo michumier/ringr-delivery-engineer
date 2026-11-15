@@ -86,12 +86,12 @@ def build_client(
 
 
 def run_conversation(
-    title: str, agent: BaseAgent, turns: int, fake: FakeHttpClient, out: TextIO
+    title: str, agent: BaseAgent, turns: Sequence[Turn], fake: FakeHttpClient, out: TextIO
 ) -> list[TurnResult]:
-    """Ejecuta `turns` turnos del agente y escribe un resumen de cada uno."""
+    """Ejecuta un turno del agente por cada turno del guion y escribe un resumen de cada uno."""
     print(f"\n=== {title} ===", file=out)
     results = []
-    for number in range(1, turns + 1):
+    for number in range(1, len(turns) + 1):
         # La cabecera va antes del turno para que su log salga debajo, no encima.
         print(f"\nTurno {number}", file=out)
         result = agent.handle_turn()
@@ -140,13 +140,11 @@ def run_demo(
     )
 
     return {
-        "debt": run_conversation(
-            "DebtAgent: compromiso de pago", debt, len(DEBT_TURNS), debt_fake, out
-        ),
+        "debt": run_conversation("DebtAgent: compromiso de pago", debt, DEBT_TURNS, debt_fake, out),
         "assistance": run_conversation(
             "AssistanceAgent: solicitud de asistencia",
             assistance,
-            len(ASSISTANCE_TURNS),
+            ASSISTANCE_TURNS,
             assistance_fake,
             out,
         ),

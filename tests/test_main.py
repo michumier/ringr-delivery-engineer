@@ -84,8 +84,14 @@ def test_el_log_de_la_demo_no_contiene_el_token(caplog):
 
 
 def test_main_ejecuta_la_demo_con_la_configuracion_del_entorno(monkeypatch, capsys):
-    """PLAN paso 7: `main()` termina sin errores, usa el entorno y no filtra el token."""
+    """PLAN paso 7: `main()` termina sin errores y no filtra el token.
+
+    Se quitan las otras variables para no depender del entorno del equipo. No comprueba por
+    dónde sale el log: dentro de pytest `logging.basicConfig` no hace nada.
+    """
     monkeypatch.setenv("RINGR_RETRY_BASE_DELAY", "0")
+    monkeypatch.delenv("RINGR_MAX_ATTEMPTS", raising=False)
+    monkeypatch.delenv("RINGR_API_TOKEN", raising=False)
 
     main()
 
