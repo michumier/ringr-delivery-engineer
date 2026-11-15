@@ -154,7 +154,7 @@ class BaseAgent(ABC):
     def should_execute(self, data: Mapping[str, object | None]) -> bool: ...  # PC-2
 ```
 
-**`DebtAgent`** (`agents/debt/agent.py`) y **`AssistanceAgent`** (`agents/assistance/agent.py`): declaran solo el «qué» (unas 15-20 líneas cada uno).
+**`DebtAgent`** (`agents/debt/agent.py`) y **`AssistanceAgent`** (`agents/assistance/agent.py`): declaran solo el «qué»: sus campos, su regla `should_execute`, su URL y el nombre de su acción.
 
 | | `DebtAgent` | `AssistanceAgent` |
 |---|---|---|
@@ -234,7 +234,7 @@ Solo lo nombra la raíz de composición; ni el agente ni `HttpActionSender` sabe
 
 ### 2.4 Arranque
 
-**`__main__.py`**: la raíz de composición y la demo (`python -m ringr_agents`). Monta `Settings` → `FakeHttpClient` → `RetryingHttpClient` → `HttpActionSender` → modelos con guion → agentes, y ejecuta unos turnos. Es el único archivo que conoce a la vez los agentes y los adaptadores concretos.
+**`__main__.py`**: la raíz de composición y la demo (`python -m ringr_agents`). Monta `Settings` → `FakeHttpClient` → `RetryingHttpClient` → `HttpActionSender` → modelos con guion → agentes, y ejecuta los 8 escenarios de la demo (DEMO2). Es el único archivo que conoce a la vez los agentes y los adaptadores concretos.
 
 ---
 

@@ -147,11 +147,11 @@ class ReminderAgent(BaseAgent):
         return data.get("note") is not None
 ```
 
-Los tests de `BaseAgent` usan precisamente un agente así, definido en el propio test (`tests/agents/test_base_agent.py`). Un tipo de dato nuevo es una estrategia más en `domain/fields/normalizers.py`. Una integración nueva es una clase que cumpla `HttpClient` (y hereda los reintentos al envolverla) o `ActionSender`.
+Los tests de `BaseAgent` usan precisamente un agente así, definido en el propio test (`tests/agents/test_base_agent.py`). Un tipo de dato nuevo es una estrategia más en `domain/fields/normalizers.py`. Una integración nueva es una clase que cumpla `HttpClient` (y obtiene los reintentos al envolverla con `RetryingHttpClient`) o `ActionSender`.
 
 ## Tests
 
-Tests con `pytest`, organizados con la misma estructura que `src/`. Cada test cita en su docstring el requisito o la decisión que comprueba (`RF-n`, `CA-n`, `AMB-n`…).
+Tests con `pytest`, organizados con la misma estructura que `src/`. Los tests citan en su docstring el requisito o la decisión que comprueban (`RF-n`, `CA-n`, `AMB-n`…), para poder seguir cada requisito hasta su test.
 
 - **Fakes en lugar de mocks.** Los modelos simulados y el `FakeHttpClient` son implementaciones reales y sencillas. Los tests comprueban resultados (la petición construida, el estado del turno) y no a quién se ha llamado.
 - **La red está bloqueada** en todos los tests (`tests/conftest.py`): ninguno puede hacer una llamada real.
