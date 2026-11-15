@@ -37,11 +37,11 @@ class HttpActionSender:
             response = self._client.send(request)
         except TransportError as error:
             logger.warning(
-                "Envío a %s sin respuesta (Idempotency-Key=%s): %s, intentos %s",
+                "Sin respuesta de %s (%s), intentos %s (Idempotency-Key=%s)",
                 url,
-                key,
                 error,
                 error.attempts,
+                key,
             )
             return SendResult(
                 ok=False, attempts=error.attempts, status_code=None, idempotency_key=key
@@ -49,11 +49,11 @@ class HttpActionSender:
         ok = 200 <= response.status_code < 300
         logger.log(
             logging.INFO if ok else logging.WARNING,
-            "Envío a %s terminado (Idempotency-Key=%s): código %s, intentos %s",
+            "Respuesta de %s: código %s, intentos %s (Idempotency-Key=%s)",
             url,
-            key,
             response.status_code,
             response.attempts,
+            key,
         )
         return SendResult(
             ok=ok,

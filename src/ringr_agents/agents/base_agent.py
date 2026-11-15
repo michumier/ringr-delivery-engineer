@@ -57,6 +57,7 @@ class BaseAgent(ABC):
         (PC-8.2). `ScriptExhaustedError` no se captura: es un guion mal preparado (PC-8.3).
         Lo ya enviado con éxito en la conversación no se reenvía: queda `DUPLICATE` (AMB-1).
         """
+        logger.info("%s: empieza el turno", self.action_name)
         errors: list[TurnError] = []
 
         # 1. Responder. Un fallo del modelo no deja al cliente sin respuesta (AMB-11).
@@ -89,6 +90,7 @@ class BaseAgent(ABC):
 
         # 4. Decidir. Con un modelo caído no se registra nada (PC-8.2).
         if errors or not self.should_execute(normalized.data):
+            self._log_not_executed(bool(errors), normalized.data)
             return TurnResult(
                 reply=EMERGENCY_REPLY if errors else reply,
                 data=normalized.data,
@@ -101,7 +103,10 @@ class BaseAgent(ABC):
         # y el cliente recibe la respuesta normal porque ya está registrado (AMB-1, PC-5).
         fp = fingerprint(self.action_name, normalized.data)
         if self._registry.was_sent(fp):
-            logger.info("%s: duplicado, no se reenvía", self.action_name)
+            logger.info(
+                "%s: estos mismos datos ya se enviaron en la conversación; no se reenvía",
+                self.action_name,
+            )
             return TurnResult(
                 reply=reply,
                 data=normalized.data,
@@ -110,13 +115,27 @@ class BaseAgent(ABC):
             )
 
         # 6. Enviar. `send` no lanza: un fallo llega como `ok=False` (AMB-4).
+        logger.info("%s: datos completos y nuevos; se ejecuta la acción", self.action_name)
         send_result = self._sender.send(self.action_url, normalized.data)
         if send_result.ok:
             status = ActionStatus.SENT
             # Solo se marca lo que ha llegado: un FAILED se puede reenviar en otro turno.
             self._registry.mark_sent(fp)
+            logger.info(
+                "%s: acción registrada (código %s, intentos %s)",
+                self.action_name,
+                send_result.status_code,
+                send_result.attempts,
+            )
         else:
             # El cliente no puede creer que está registrado si no lo está (PC-8).
+            logger.warning(
+                "%s: la acción no se ha podido registrar (código %s, intentos %s); se "
+                "responde con el mensaje de emergencia y se podrá reenviar en otro turno",
+                self.action_name,
+                send_result.status_code,
+                send_result.attempts,
+            )
             status = ActionStatus.FAILED
             errors.append(TurnError.SEND_FAILED)
             reply = EMERGENCY_REPLY
@@ -130,3 +149,27 @@ class BaseAgent(ABC):
             errors=tuple(errors),
             send_result=send_result,
         )
+
+    def _log_not_executed(self, model_failed: bool, data: Mapping[str, object | None]) -> None:
+        """Explica en el log por qué no se ejecuta la acción en este turno.
+
+        Nombra los campos que faltan, nunca sus valores: son datos del cliente (LOGS, PASO3).
+        """
+        if model_failed:
+            logger.warning(
+                "%s: ha fallado un modelo; no se ejecuta la acción y se responde con el "
+                "mensaje de emergencia",
+                self.action_name,
+            )
+            return
+        missing = [str(name) for name, value in data.items() if value is None]
+        if missing:
+            logger.info(
+                "%s: faltan datos (%s); no se ejecuta la acción",
+                self.action_name,
+                ", ".join(missing),
+            )
+        else:
+            logger.info(
+                "%s: no se cumplen las condiciones; no se ejecuta la acción", self.action_name
+            )

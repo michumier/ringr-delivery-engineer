@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TypeVar
 
-N = TypeVar("N", int, float)
+Number = TypeVar("Number", int, float)
 
 # Token de pruebas del enunciado: solo es el valor por defecto si no hay variable (PC-10).
 DEFAULT_API_TOKEN = "ringr_test_token_9f3a2c1d"
@@ -46,7 +46,9 @@ class Settings:
         )
 
 
-def _read_number(env: Mapping[str, str], name: str, convert: Callable[[str], N], default: N) -> N:
+def _read_number(
+    env: Mapping[str, str], name: str, convert: Callable[[str], Number], default: Number
+) -> Number:
     raw = env.get(name)
     if raw is None or raw.strip() == "":
         return default

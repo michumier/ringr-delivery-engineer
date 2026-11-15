@@ -72,23 +72,23 @@ class RetryingHttpClient:
                     error.attempts = attempt
                     raise
                 logger.warning(
-                    "Intento %s/%s a %s sin respuesta (Idempotency-Key=%s): %s",
+                    "Intento %s/%s a %s sin respuesta (%s); se reintenta (Idempotency-Key=%s)",
                     attempt,
                     attempts,
                     url,
-                    key,
                     error,
+                    key,
                 )
                 continue
             if not _is_retryable(response.status_code) or attempt == attempts:
                 return replace(response, attempts=attempt)
             logger.warning(
-                "Intento %s/%s a %s (Idempotency-Key=%s): código %s",
+                "Intento %s/%s a %s: código %s; se reintenta (Idempotency-Key=%s)",
                 attempt,
                 attempts,
                 url,
-                key,
                 response.status_code,
+                key,
             )
         # Inalcanzable: el último intento siempre devuelve o lanza. Está para el tipado.
         raise AssertionError("inalcanzable: el último intento siempre devuelve o lanza")
