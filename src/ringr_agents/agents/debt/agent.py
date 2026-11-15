@@ -4,6 +4,7 @@ from collections.abc import Callable, Mapping
 from datetime import date
 
 from ringr_agents.agents.base_agent import BaseAgent
+from ringr_agents.domain.dedup import SentActionRegistry
 from ringr_agents.domain.enums import ActionName, FieldName
 from ringr_agents.domain.fields import AmountField, DateField, FieldNormalizer
 from ringr_agents.domain.ports import ActionSender
@@ -21,10 +22,11 @@ class DebtAgent(BaseAgent):
         conversation_model: ConversationModel,
         parser_model: ParserModel,
         sender: ActionSender,
+        registry: SentActionRegistry | None = None,
         *,
         today: Callable[[], date] = date.today,
     ) -> None:
-        super().__init__(conversation_model, parser_model, sender)
+        super().__init__(conversation_model, parser_model, sender, registry)
         # `today` se inyecta para poder probar el borde de «fecha pasada» (PC-4).
         self._fields: dict[str, FieldNormalizer] = {
             FieldName.COMMITMENT_DATE: DateField(today),
