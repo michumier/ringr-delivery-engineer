@@ -3,7 +3,7 @@
 import math
 import os
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TypeVar
 
 N = TypeVar("N", int, float)
@@ -20,7 +20,8 @@ class ConfigError(ValueError):
 class Settings:
     """Lo que cambia entre entornos. Solo lo usa la raíz de composición."""
 
-    api_token: str = DEFAULT_API_TOKEN
+    # Fuera del repr: el token no debe salir si se imprime la configuración (PC-10).
+    api_token: str = field(default=DEFAULT_API_TOKEN, repr=False)
     max_attempts: int = 3
     base_delay: float = 0.2
 
@@ -39,7 +40,7 @@ class Settings:
         if base_delay < 0:
             raise ConfigError(f"RINGR_RETRY_BASE_DELAY no puede ser negativo, no {base_delay}")
         return cls(
-            api_token=env.get("RINGR_API_TOKEN") or defaults.api_token,
+            api_token=(env.get("RINGR_API_TOKEN") or "").strip() or defaults.api_token,
             max_attempts=max_attempts,
             base_delay=base_delay,
         )

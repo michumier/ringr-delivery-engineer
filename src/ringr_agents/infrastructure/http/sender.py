@@ -36,7 +36,13 @@ class HttpActionSender:
         try:
             response = self._client.send(request)
         except TransportError as error:
-            logger.warning("Envío a %s sin respuesta (Idempotency-Key=%s): %s", url, key, error)
+            logger.warning(
+                "Envío a %s sin respuesta (Idempotency-Key=%s): %s, intentos %s",
+                url,
+                key,
+                error,
+                error.attempts,
+            )
             return SendResult(
                 ok=False, attempts=error.attempts, status_code=None, idempotency_key=key
             )
@@ -59,15 +65,20 @@ class HttpActionSender:
     def build_request(self, url: str, data: Mapping[str, object | None], key: str) -> HttpRequest:
         """Construye la request: una cabecera por campo no nulo y el mismo JSON como cuerpo."""
         present = {name: value for name, value in data.items() if value is not None}
-        headers = {name: quote(str(value), safe="") for name, value in present.items()}
-        # Las cabeceras fijas van después, para que un campo no pueda pisarlas.
-        headers.update(
-            {
-                "Authorization": f"Bearer {self._token}",
-                "Content-Type": "application/json",
-                "Idempotency-Key": key,
-            }
-        )
+        fixed = {
+            "Authorization": f"Bearer {self._token}",
+            "Content-Type": "application/json",
+            "Idempotency-Key": key,
+        }
+        # En HTTP los nombres de cabecera no distinguen mayúsculas: un campo llamado
+        # "authorization" se descarta como cabecera para no mandar dos (sigue en el cuerpo).
+        reserved = {name.lower() for name in fixed}
+        headers = {
+            name: quote(str(value), safe="")
+            for name, value in present.items()
+            if name.lower() not in reserved
+        }
+        headers.update(fixed)
         # ensure_ascii=False: el texto original va intacto en el cuerpo (AMB-7).
         body = json.dumps(present, ensure_ascii=False)
         return HttpRequest(method="POST", url=url, headers=headers, body=body)

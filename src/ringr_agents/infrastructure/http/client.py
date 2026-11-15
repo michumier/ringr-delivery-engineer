@@ -1,7 +1,7 @@
 """Contrato HTTP: `HttpRequest`, `HttpResponse`, `TransportError` y `HttpClient` (Protocol)."""
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 
@@ -11,7 +11,8 @@ class HttpRequest:
 
     method: str
     url: str
-    headers: Mapping[str, str]
+    # Fuera del repr: las cabeceras llevan el token y no debe salir si se imprime la request.
+    headers: Mapping[str, str] = field(repr=False)
     body: str
 
 

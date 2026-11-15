@@ -1,4 +1,4 @@
-"""Cliente HTTP simulado: guarda las requests y responde según una secuencia (CA-14, PC-6)."""
+"""Cliente HTTP simulado: guarda las requests y responde según una secuencia (CA-14, AMB-4)."""
 
 import pytest
 
@@ -30,7 +30,7 @@ class TestFakeHttpClient:
         assert response.status_code == 200
 
     def test_returns_the_sequence_in_order_and_then_200(self):
-        """PC-6: devuelve los códigos en orden y, agotada la secuencia, 200."""
+        """AMB-4: devuelve los códigos en orden y, agotada la secuencia, 200."""
         client = FakeHttpClient([503, 400])
 
         codes = [client.send(make_request()).status_code for _ in range(3)]
@@ -38,7 +38,7 @@ class TestFakeHttpClient:
         assert codes == [503, 400, 200]
 
     def test_raises_the_configured_transport_error(self):
-        """PC-6: un TransportError en la secuencia se lanza, y la request queda guardada."""
+        """AMB-4: un TransportError en la secuencia se lanza, y la request queda guardada."""
         error = TransportError("timeout", attempts=3)
         client = FakeHttpClient([error])
 
@@ -49,7 +49,7 @@ class TestFakeHttpClient:
         assert len(client.requests) == 1
 
     def test_continues_with_the_sequence_after_a_transport_error(self):
-        """PC-6: tras lanzar el error, el siguiente envío usa el siguiente elemento."""
+        """AMB-4: tras lanzar el error, el siguiente envío usa el siguiente elemento."""
         client = FakeHttpClient([TransportError(), 503])
         with pytest.raises(TransportError):
             client.send(make_request())
@@ -59,7 +59,7 @@ class TestFakeHttpClient:
         assert response.status_code == 503
 
     def test_ignores_later_changes_to_the_list_given_by_the_caller(self):
-        """PC-6: el fake copia la secuencia; modificar la lista original no la altera."""
+        """AMB-4: el fake copia la secuencia; modificar la lista original no la altera."""
         results = [503]
         client = FakeHttpClient(results)
         results.clear()

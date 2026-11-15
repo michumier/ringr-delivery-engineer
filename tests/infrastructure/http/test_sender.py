@@ -1,4 +1,4 @@
-"""Envío HTTP: request construida, resultado y log (RF-11, RF-12, RF-13, AMB-4, AMB-7, PC-7.2)."""
+"""Envío HTTP: request construida, resultado y log (RF-11, RF-12, RF-13, AMB-4, AMB-7, PASO3)."""
 
 import json
 import logging
@@ -96,7 +96,7 @@ class TestRequestBuilt:
 
     @pytest.mark.parametrize("name", ["Authorization", "Content-Type", "Idempotency-Key"])
     def test_a_field_cannot_override_the_fixed_headers(self, name):
-        """RF-12, PC-7.2: un campo con el nombre de una cabecera fija no la pisa."""
+        """RF-12, AMB-7: un campo con el nombre de una cabecera fija no la pisa."""
         sender, client = make_sender(key="clave-real")
 
         sender.send(URL, {name: "malicioso"})
@@ -179,7 +179,7 @@ class TestSendResult:
 
 class TestSendLogging:
     def test_logs_the_start_and_the_end_of_a_successful_send(self, caplog):
-        """PC-7.2: cada envío deja log con URL e Idempotency-Key, en INFO si va bien."""
+        """PASO3: cada envío deja log con URL e Idempotency-Key, en INFO si va bien."""
         sender, _ = make_sender([200], key="k-1")
 
         with caplog.at_level(logging.INFO, logger=SENDER_LOGGER):
@@ -192,7 +192,7 @@ class TestSendLogging:
         assert "200" in records[1].getMessage()
 
     def test_logs_a_warning_for_an_error_status(self, caplog):
-        """PC-7.2: un 503 se registra como WARNING con su código."""
+        """PASO3: un 503 se registra como WARNING con su código."""
         sender, _ = make_sender([503], key="k-2")
 
         with caplog.at_level(logging.INFO, logger=SENDER_LOGGER):
@@ -204,7 +204,7 @@ class TestSendLogging:
         assert "k-2" in last.getMessage()
 
     def test_logs_a_warning_when_there_is_no_response(self, caplog):
-        """PC-7.2: un error de transporte se registra como WARNING."""
+        """PASO3: un error de transporte se registra como WARNING."""
         sender, _ = make_sender([TransportError("timeout")], key="k-3")
 
         with caplog.at_level(logging.INFO, logger=SENDER_LOGGER):
@@ -216,10 +216,64 @@ class TestSendLogging:
         assert "k-3" in last.getMessage()
 
     def test_log_does_not_contain_the_token(self, caplog):
-        """RF-12: el token no se escribe en el log."""
+        """PASO3, PC-10: el token no se escribe en el log."""
         sender, _ = make_sender([200])
 
         with caplog.at_level(logging.DEBUG):
             sender.send(URL, {"request": "Hola"})
 
         assert TOKEN not in caplog.text
+
+
+class TestRequestSafety:
+    @pytest.mark.parametrize("name", ["authorization", "CONTENT-TYPE", "idempotency-key"])
+    def test_a_field_with_a_reserved_name_in_other_case_is_not_sent_as_header(self, name):
+        """RF-12, AMB-7: en HTTP las cabeceras no distinguen mayúsculas; no se mandan dos."""
+        sender, client = make_sender(key="clave-real")
+
+        sender.send(URL, {name: "malicioso"})
+
+        headers = client.requests[0].headers
+        same_name = [h for h in headers if h.lower() == name.lower()]
+        assert len(same_name) == 1  # solo la cabecera fija, no una segunda
+        assert "malicioso" not in headers.values()
+        assert json.loads(client.requests[0].body) == {name: "malicioso"}
+
+    def test_a_line_break_in_a_value_cannot_inject_a_header(self):
+        """PC-12: `quote` codifica el salto de línea; no se puede colar otra cabecera."""
+        sender, client = make_sender()
+
+        sender.send(URL, {"request": "Hola\r\nX-Falsa: si"})
+
+        value = client.requests[0].headers["request"]
+        assert "\r" not in value and "\n" not in value
+        assert value == "Hola%0D%0AX-Falsa%3A%20si"
+
+    def test_repr_of_the_request_does_not_show_the_token(self):
+        """PC-10: si se imprime la request (p. ej. en un test que falla) no sale el token."""
+        sender, client = make_sender()
+
+        sender.send(URL, {"request": "Hola"})
+
+        assert TOKEN not in repr(client.requests[0])
+
+
+class TestTokenNeverLogged:
+    @pytest.mark.parametrize("result", [503, TransportError("timeout")])
+    def test_token_is_not_logged_when_the_send_fails(self, caplog, result):
+        """PASO3, PC-10: ni con un 503 ni sin respuesta sale el token en el log."""
+        sender, _ = make_sender([result])
+
+        with caplog.at_level(logging.DEBUG):
+            sender.send(URL, {"request": "Hola"})
+
+        assert TOKEN not in caplog.text
+
+    def test_transport_error_log_includes_the_attempts(self, caplog):
+        """PASO3: el log de un envío sin respuesta lleva también los intentos."""
+        sender, _ = make_sender([TransportError("timeout", attempts=3)])
+
+        with caplog.at_level(logging.INFO, logger=SENDER_LOGGER):
+            sender.send(URL, {"request": "Hola"})
+
+        assert "intentos 3" in caplog.records[-1].getMessage()
