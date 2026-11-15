@@ -82,7 +82,7 @@ Convención: `Debt` = `DebtAgent`; `Asist` = `AssistanceAgent`. Los valores son 
 - Cuando se llama a `handle_turn`,
 - Entonces se ha llamado una vez a `answer_user` y una vez a `parse_data`, y no se ha enviado ninguna request.
 
-**CA-2 (RF-8, RF-11, RF-12, RF-14). Caso feliz de cobros.**
+**CA-2 (RF-8, RF-11, RF-12, RF-14). Caso exitoso de cobros.**
 - Dado un parser que devuelve `{"commitment_date": "2026-12-01", "committed_amount": 150.0}`,
 - Cuando se llama a `handle_turn` del `DebtAgent`,
 - Entonces se construye exactamente 1 request `POST` a `https://api.ringr.debt/v1/commitment`, con header `Authorization: Bearer ringr_test_token_9f3a2c1d`, un body que contiene la fecha `2026-12-01` y la cantidad `150.0` (forma exacta: AMB-10), y la respuesta simulada es 200.
@@ -92,7 +92,7 @@ Convención: `Debt` = `DebtAgent`; `Asist` = `AssistanceAgent`. Los valores son 
 - Cuando se llama a `handle_turn`,
 - Entonces no se envía ninguna request. (Si los valores se acumulan entre turnos: AMB-12.)
 
-**CA-4 (RF-10, RF-11, RF-12). Caso feliz de atención.**
+**CA-4 (RF-10, RF-11, RF-12). Caso exitoso de atención.**
 - Dado un parser que devuelve `{"request": "Quiero cambiar mi dirección de facturación"}`,
 - Cuando se llama a `handle_turn` del `AssistanceAgent`,
 - Entonces se construye exactamente 1 request `POST` a `https://api.ringr.assistance/v1/request`, con `Authorization: Bearer ringr_test_token_9f3a2c1d` y un body que contiene esa solicitud (forma exacta: AMB-10).

@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class BaseAgent(ABC):
     """Orquesta el turno en orden fijo; las subclases solo declaran el «qué»."""
 
-    action_name: ClassVar[str]  # un valor de ActionName
+    action_name: ClassVar[str]  # los agentes usan ActionName; vale cualquier texto (ENUM-2)
     action_url: ClassVar[str]  # la URL vive en el agente (PC-10)
 
     def __init__(
@@ -162,7 +162,7 @@ class BaseAgent(ABC):
         )
 
     def _log_model_failure(self, method: str, error: Exception) -> None:
-        """Una sola línea con el método y el error, sin la traza completa (revisión PR 8)."""
+        """Una sola línea con el método y el error, sin la traza completa (PR8)."""
         logger.warning(
             "%s: falló %s (%s: %s)", self.action_name, method, type(error).__name__, error
         )

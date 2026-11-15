@@ -1,6 +1,6 @@
 # ARQUITECTURA
 
-Organización de las clases, los patrones y las dependencias. Las **reglas de comportamiento** están en `REQUISITOS.md` y `DECISIONES.md` (se citan como «ver AMB-n» o «ver PC-n»); los **tests, el plan de construcción y las piezas de Miguel**, en `PLAN.md`.
+Organización de las clases, los patrones y las dependencias. Las **reglas de comportamiento** están en `REQUISITOS.md` y `DECISIONES.md` (se citan como «ver AMB-n» o «ver PC-n»); los **tests y el plan de construcción**, en `PLAN.md`.
 
 Código en inglés y docstrings en español (AMB-8). Solo librería estándar (AMB-9).
 
@@ -311,8 +311,8 @@ entrega/
 ├── README.md                       # qué hace, cómo se ejecuta y por qué está hecho así
 ├── .gitignore                      # .venv, cachés y notas/ (no se entrega)
 ├── .github/workflows/ci.yml        # ruff + pytest en cada PR (FLU-1)
-├── CLAUDE.md                       # flujo de trabajo con IA, copiado al final (FLU-2)
-├── .claude/agents/                 # agentes, copiados al final (FLU-2)
+├── CLAUDE.md                       # flujo de trabajo con IA (FLU-2)
+├── .claude/agents/                 # los agentes de ese flujo (FLU-2)
 ├── docs/
 │   ├── enunciado.pdf               # enunciado de la prueba
 │   ├── REQUISITOS.md               # requisitos y ambigüedades resueltas
