@@ -6,7 +6,7 @@ Los duplicados se integran en el paso 5.
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from typing import Any, ClassVar
+from typing import Any, ClassVar, final
 
 from ringr_agents.domain.constants import EMERGENCY_REPLY
 from ringr_agents.domain.enums import ActionStatus, TurnError
@@ -46,6 +46,7 @@ class BaseAgent(ABC):
     def should_execute(self, data: Mapping[str, object | None]) -> bool:
         """Dice si, con estos datos ya normalizados, hay que ejecutar la acción (PC-2)."""
 
+    @final  # la plantilla no se sobrescribe: los agentes solo cambian el «qué» (PC-1)
     def handle_turn(self) -> TurnResult:
         """Ejecuta un turno en orden fijo y devuelve su `TurnResult` (Template Method, PC-1).
 
@@ -58,7 +59,7 @@ class BaseAgent(ABC):
         errors: list[TurnError] = []
 
         # 1. Responder. Un fallo del modelo no deja al cliente sin respuesta (AMB-11).
-        reply: str | None = None
+        reply = EMERGENCY_REPLY  # se sustituye por la respuesta del modelo si no falla
         try:
             reply = self._conversation_model.answer_user()
         except ScriptExhaustedError:
@@ -71,7 +72,11 @@ class BaseAgent(ABC):
         # sigan en el mismo turno y el resultado diga todo lo que ha fallado.
         raw: Mapping[str, Any] = {}
         try:
-            raw = self._parser_model.parse_data()
+            parsed = self._parser_model.parse_data()
+            # Un LLM puede devolver algo malformado: si no es un dict, cuenta como fallo.
+            if not isinstance(parsed, Mapping):
+                raise TypeError(f"parse_data devolvió {type(parsed).__name__}, no un dict")
+            raw = parsed
         except ScriptExhaustedError:
             raise
         except Exception:

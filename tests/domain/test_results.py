@@ -43,3 +43,13 @@ class TestTurnResult:
 
         with pytest.raises(dataclasses.FrozenInstanceError):
             result.reply = "otra"  # type: ignore[misc]
+
+    def test_data_cannot_be_modified_either(self):
+        """AMB-5: los datos del resultado tampoco se pueden cambiar desde fuera."""
+        original = {"request": "hola"}
+        result = TurnResult(reply="r", data=original, action_status=ActionStatus.SENT)
+
+        with pytest.raises(TypeError):
+            result.data["request"] = "otra"  # type: ignore[index]
+        original["request"] = "cambiada"
+        assert result.data == {"request": "hola"}

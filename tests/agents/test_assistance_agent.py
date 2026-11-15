@@ -7,7 +7,7 @@ import pytest
 from ringr_agents.agents import AssistanceAgent
 from ringr_agents.domain.enums import ActionName, ActionStatus, FieldName
 
-from .conftest import TOKEN
+from .constants import TOKEN
 
 REQUEST_TEXT = "Quiero cambiar mi dirección de facturación"
 

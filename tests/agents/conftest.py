@@ -1,15 +1,11 @@
 """Fixtures comunes de los tests de agentes: modelos con guion, envío real y cliente simulado."""
 
-from datetime import date
-
 import pytest
 
 from ringr_agents.infrastructure.http import FakeHttpClient, HttpActionSender
 from ringr_agents.infrastructure.models import ConversationModel, ParserModel
 
-TOKEN = "ringr_test_token_9f3a2c1d"
-KEY = "key-fija-0001"
-TODAY = date(2026, 11, 15)
+from .constants import KEY, TODAY, TOKEN
 
 
 @pytest.fixture

@@ -1,5 +1,6 @@
 """Ciclo de `BaseAgent.handle_turn` con un agente de prueba (CA-12, CA-13, AMB-5, AMB-11, PC-8)."""
 
+import logging
 from collections.abc import Mapping
 
 import pytest
@@ -11,7 +12,7 @@ from ringr_agents.domain.fields import FieldNormalizer, TextField
 from ringr_agents.infrastructure.http import TransportError
 from ringr_agents.infrastructure.models import ScriptExhaustedError
 
-from .conftest import KEY, TOKEN
+from .constants import KEY, TOKEN
 
 
 class ReminderAgent(BaseAgent):
@@ -144,6 +145,19 @@ class TestParserFailure:
         assert dict(result.data) == {"note": None}
         assert client.requests == []
 
+    @pytest.mark.parametrize("bad", [None, [], "texto"])
+    def test_a_result_that_is_not_a_dict_counts_as_parser_failure(self, make_agent, bad):
+        """AMB-11 y PC-8: si parse_data no devuelve un dict -> emergencia y PARSER_FAILED."""
+        agent, client = make_agent(["Hecho."], [bad])
+
+        result = agent.handle_turn()
+
+        assert result.reply == EMERGENCY_REPLY
+        assert result.action_status is ActionStatus.NOT_REQUIRED
+        assert result.errors == (TurnError.PARSER_FAILED,)
+        assert dict(result.data) == {"note": None}
+        assert client.requests == []
+
     def test_both_models_failing_report_both_errors_in_order(self, make_agent):
         """AMB-11: si fallan los dos, CONVERSATION_FAILED antes que PARSER_FAILED."""
         agent, client = make_agent([RuntimeError("a")], [RuntimeError("b")])
@@ -199,3 +213,26 @@ class TestScriptExhausted:
 
         with pytest.raises(ScriptExhaustedError):
             agent.handle_turn()
+
+
+class TestFailureLogging:
+    @pytest.mark.parametrize(
+        ("conversation", "parser", "method"),
+        [
+            ([RuntimeError("caído")], [{"note": "a"}], "answer_user"),
+            (["Hecho."], [RuntimeError("caído")], "parse_data"),
+        ],
+    )
+    def test_a_model_failure_is_logged_as_error(
+        self, make_agent, caplog, conversation, parser, method
+    ):
+        """AMB-10 y AMB-11: el fallo de un modelo deja un ERROR con la acción y el método."""
+        agent, _ = make_agent(conversation, parser)
+
+        with caplog.at_level(logging.ERROR, logger="ringr_agents.agents.base_agent"):
+            agent.handle_turn()
+
+        errors = [r for r in caplog.records if r.levelno == logging.ERROR]
+        assert len(errors) == 1
+        assert "register_reminder" in errors[0].getMessage()
+        assert method in errors[0].getMessage()

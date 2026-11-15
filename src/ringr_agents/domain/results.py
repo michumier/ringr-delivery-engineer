@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 
 from ringr_agents.domain.enums import ActionStatus, TurnError
 
@@ -26,3 +27,8 @@ class TurnResult:
     warnings: tuple[str, ...] = ()  # datos descartados (AMB-2)
     errors: tuple[TurnError, ...] = ()
     send_result: SendResult | None = None  # detalle del envío (intentos incluidos), si lo hubo
+
+    def __post_init__(self) -> None:
+        # `frozen` impide cambiar los atributos, pero no el dict de dentro: se guarda una
+        # copia de solo lectura para que el resultado sea inmutable de verdad.
+        object.__setattr__(self, "data", MappingProxyType(dict(self.data)))

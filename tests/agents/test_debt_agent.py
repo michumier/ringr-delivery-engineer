@@ -9,7 +9,7 @@ from ringr_agents.domain.constants import EMERGENCY_REPLY
 from ringr_agents.domain.enums import ActionName, ActionStatus, FieldName
 from ringr_agents.infrastructure.models import ScriptExhaustedError
 
-from .conftest import KEY, TOKEN
+from .constants import KEY, TOKEN
 
 VALID = {"commitment_date": "2026-12-01", "committed_amount": 150.0}
 
