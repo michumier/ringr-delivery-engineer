@@ -226,7 +226,7 @@ class TestFailureLogging:
     def test_a_model_failure_is_logged_as_a_one_line_warning(
         self, make_agent, caplog, conversation, parser, method
     ):
-        """AMB-10, AMB-11 y revisión de la PR 8: el fallo de un modelo deja un WARNING de una
+        """AMB-10, AMB-11 y PR8: el fallo de un modelo deja un WARNING de una
         línea con la acción, el método y el tipo de error, sin la traza completa."""
         agent, _ = make_agent(conversation, parser)
 

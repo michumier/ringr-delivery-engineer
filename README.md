@@ -81,7 +81,24 @@ La petición lleva:
 | **Inyección de dependencias** | Constructores; `__main__.py` como raíz de composición | Modelos, sender, registro de duplicados, reloj, generador de claves y espera se inyectan. Así todo es testeable sin red ni esperas reales. |
 | **Responsabilidad única** | Un archivo por pieza; `handle_turn` dividido en métodos pequeños | Cada cambio se localiza en un único sitio. |
 
-El código se organiza en tres capas: `domain/` (reglas y tipos propios; no depende de nada), `agents/` (la base y una carpeta por agente) e `infrastructure/` (modelos simulados, HTTP y configuración).
+El código se organiza en tres capas, con la regla de dependencias `agents → domain ← infrastructure`:
+
+```
+src/ringr_agents/
+├── __main__.py        # raíz de composición y demo
+├── domain/            # reglas y tipos propios; no depende de nada
+│   ├── enums.py, constants.py, results.py, ports.py, dedup.py
+│   └── fields/        # validación y normalización (Strategy)
+├── agents/            # BaseAgent (Template Method) y una carpeta por agente
+│   ├── debt/
+│   └── assistance/
+└── infrastructure/    # lo externo, aquí simulado
+    ├── config.py      # Settings desde variables de entorno
+    ├── models/        # ConversationModel y ParserModel con guion
+    └── http/          # request, cliente falso, reintentos (Decorator) y sender
+```
+
+El árbol completo, con los tests, está en [`ARQUITECTURA.md`](docs/ARQUITECTURA.md#6-estructura-de-carpetas-decidida-carp-1).
 
 ### Decisiones principales
 
@@ -98,7 +115,7 @@ El enunciado deja abiertos varios puntos. Estas son las decisiones más relevant
 
 | Situación | Estado | Respuesta al cliente | ¿Se envía? |
 |---|---|---|---|
-| Faltan datos o no son válidos | `NOT_REQUIRED` (con avisos) | la del modelo | No |
+| Faltan datos (sin aviso) o no son válidos (con aviso) | `NOT_REQUIRED` | la del modelo | No |
 | Falla `answer_user` o `parse_data` | `NOT_REQUIRED` + `TurnError` | de emergencia | No |
 | Mismos datos que un envío anterior | `DUPLICATE` | la del modelo | No |
 | 5xx o error de transporte | se reintenta | — | Sí, hasta 3 veces |
@@ -109,11 +126,19 @@ El enunciado deja abiertos varios puntos. Estas son las decisiones más relevant
 Basta con una subclase. No hay que tocar `BaseAgent`, ni el envío, ni los reintentos, ni los duplicados:
 
 ```python
+from collections.abc import Mapping
+from types import MappingProxyType
+from typing import ClassVar
+
+from ringr_agents.agents import BaseAgent
+from ringr_agents.domain.fields import FieldNormalizer, TextField
+
+
 class ReminderAgent(BaseAgent):
     action_name = "register_reminder"
     action_url = "https://api.ringr.test/v1/reminder"
 
-    _fields = MappingProxyType({"note": TextField()})
+    _fields: ClassVar[Mapping[str, FieldNormalizer]] = MappingProxyType({"note": TextField()})
 
     def fields(self) -> Mapping[str, FieldNormalizer]:
         return self._fields
@@ -126,7 +151,7 @@ Los tests de `BaseAgent` usan precisamente un agente así, definido en el propio
 
 ## Tests
 
-327 tests con `pytest`, organizados con la misma estructura que `src/`. Cada test cita en su docstring el requisito o la decisión que comprueba (`RF-n`, `CA-n`, `AMB-n`…).
+Tests con `pytest`, organizados con la misma estructura que `src/`. Cada test cita en su docstring el requisito o la decisión que comprueba (`RF-n`, `CA-n`, `AMB-n`…).
 
 - **Fakes en lugar de mocks.** Los modelos simulados y el `FakeHttpClient` son implementaciones reales y sencillas. Los tests comprueban resultados (la petición construida, el estado del turno) y no a quién se ha llamado.
 - **La red está bloqueada** en todos los tests (`tests/conftest.py`): ninguno puede hacer una llamada real.
@@ -138,7 +163,7 @@ Los tests de `BaseAgent` usan precisamente un agente así, definido en el propio
 - **El registro de duplicados está en memoria**, uno por agente (es decir, por conversación). En producción sería persistente, con la misma interfaz.
 - **Una acción por agente.** Un agente con dos acciones obligaría a cambiar `BaseAgent`; ningún requisito lo pide.
 - **`handle_turn()` no recibe el mensaje del cliente** (AMB-5), y `BaseAgent` importa directamente los modelos simulados, sin interfaz (PORT-1). Es lo que plantea el enunciado. Con modelos reales, `handle_turn` recibiría el mensaje y los modelos tendrían una interfaz; el resto del diseño no cambia.
-- **Cualquier 2xx cuenta como éxito.**
+- **Cualquier 2xx cuenta como éxito.** Un `202 Accepted` (recibido, pero pendiente de procesar) se trata igual que un `200`; con un destino real habría que confirmar qué código significa «registrado».
 
 ## Flujo de trabajo con IA
 
@@ -146,12 +171,12 @@ El desarrollo se ha hecho con Claude Code, con Claude Opus 5.5 como modelo de la
 
 | Agente | Modelo | Qué ha hecho |
 |---|---|---|
-| `analista-requisitos` | Claude Sonnet 5.5 | Convirtió el enunciado en requisitos, criterios de aceptación y ambigüedades con opciones. |
-| `arquitecto` | Claude Opus 5.5 | Propuso la arquitectura y el plan de construcción, con alternativas en cada punto clave. |
-| `constructor` | Claude Sonnet 5.5 | Implementó cada paso del plan aprobado, sin tomar decisiones de diseño. |
-| `tester` | Claude Sonnet 5.5 | Escribió los tests a partir de los criterios de aceptación y las decisiones. |
-| `verificador` | Claude Haiku 5.5 | Hizo las comprobaciones mecánicas: estilo, tests, trazabilidad, secretos y restos. |
-| `revisor` | Claude Opus 5.5 | Revisó cada PR y el proyecto entero como lo haría el evaluador, con veredicto APTO / NECESITA CAMBIOS. |
+| `analista-requisitos` | Claude Sonnet | Convirtió el enunciado en requisitos, criterios de aceptación y ambigüedades con opciones. |
+| `arquitecto` | Claude Opus | Propuso la arquitectura y el plan de construcción, con alternativas en cada punto clave. |
+| `constructor` | Claude Sonnet | Implementó cada paso del plan aprobado, sin tomar decisiones de diseño. |
+| `tester` | Claude Sonnet | Escribió los tests a partir de los criterios de aceptación y las decisiones. |
+| `verificador` | Claude Haiku | Hizo las comprobaciones mecánicas: estilo, tests, trazabilidad, secretos y restos. |
+| `revisor` | Claude Opus | Revisó cada PR y el proyecto entero como lo haría el evaluador, con veredicto APTO / NECESITA CAMBIOS. |
 
 1. **Requisitos:** un agente analista extrajo del enunciado los requisitos, los criterios de aceptación y las ambigüedades, con opciones para cada una ([`REQUISITOS.md`](docs/REQUISITOS.md)).
 2. **Arquitectura:** un agente arquitecto propuso el diseño con alternativas en los puntos clave ([`ARQUITECTURA.md`](docs/ARQUITECTURA.md), [`PLAN.md`](docs/PLAN.md)).

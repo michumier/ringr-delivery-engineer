@@ -149,7 +149,7 @@ def test_end_of_each_conversation_counts_the_real_requests(caplog):
 
 
 def test_output_shows_turns_and_last_request_with_masked_token(demo):
-    """PLAN paso 7, PC-10 y revisión PR 7: se ve la request y el token sale como «Bearer ***»."""
+    """PLAN paso 7, PC-10 y PASO7: se ve la request y el token sale como «Bearer ***»."""
     _, _, output = demo
 
     assert "Turno 1" in output

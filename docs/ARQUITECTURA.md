@@ -1,6 +1,6 @@
 # ARQUITECTURA
 
-Organización de las clases, los patrones y las dependencias. Las **reglas de comportamiento** están en `REQUISITOS.md` y `DECISIONES.md` (se citan como «ver AMB-n» o «ver PC-n»); los **tests, el plan de construcción y las piezas de Miguel**, en `PLAN.md`.
+Organización de las clases, los patrones y las dependencias. Las **reglas de comportamiento** están en `REQUISITOS.md` y `DECISIONES.md` (se citan como «ver AMB-n» o «ver PC-n»); los **tests y el plan de construcción**, en `PLAN.md`.
 
 Código en inglés y docstrings en español (AMB-8). Solo librería estándar (AMB-9).
 

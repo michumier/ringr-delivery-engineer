@@ -1,6 +1,6 @@
 # Flujo de trabajo con Claude Code
 
-Este archivo es el que se usó como instrucciones de proyecto para Claude Code durante el desarrollo de la prueba. Se incluye en la entrega para mostrar cómo se ha trabajado con IA: un flujo por fases, con agentes especializados y con las decisiones técnicas siempre en manos del desarrollador.
+Versión adaptada para la entrega de las instrucciones de proyecto que se usaron con Claude Code durante el desarrollo de la prueba (con las rutas relativas a este repositorio). Se incluye en la entrega para mostrar cómo se ha trabajado con IA: un flujo por fases, con agentes especializados y con las decisiones técnicas siempre en manos del desarrollador.
 
 ## Principio: el desarrollador decide
 
