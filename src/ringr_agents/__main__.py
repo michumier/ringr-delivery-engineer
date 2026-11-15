@@ -6,6 +6,7 @@ Es el único archivo que conoce a la vez los agentes y los adaptadores concretos
 simulado.
 """
 
+import io
 import logging
 import sys
 import time
@@ -15,6 +16,7 @@ from datetime import date
 from typing import Any, TextIO
 
 from ringr_agents.agents import AssistanceAgent, BaseAgent, DebtAgent
+from ringr_agents.domain.ports import ActionSender
 from ringr_agents.domain.results import TurnResult
 from ringr_agents.infrastructure.config import Settings
 from ringr_agents.infrastructure.http import (
@@ -38,6 +40,16 @@ DEMO_TODAY = date(2026, 11, 15)
 # (normalmente un dict; en el escenario 8, algo que no lo es).
 Turn = tuple[str, Any]
 ServerReply = int | TransportError
+# Cualquier cosa que cree un agente con sus dos modelos y su sender: la propia clase o una
+# función. Así un agente nuevo entra en la demo sin tocar `build_agent`.
+AgentFactory = Callable[[ConversationModel, ParserModel, ActionSender], BaseAgent]
+
+
+def debt_agent(
+    conversation: ConversationModel, parser: ParserModel, sender: ActionSender
+) -> BaseAgent:
+    """`DebtAgent` con el «hoy» fijo de la demo."""
+    return DebtAgent(conversation, parser, sender, today=lambda: DEMO_TODAY)
 
 
 @dataclass(frozen=True)
@@ -46,7 +58,7 @@ class Scenario:
 
     key: str
     title: str
-    agent: type[DebtAgent] | type[AssistanceAgent]
+    make_agent: AgentFactory  # crea el agente de esta conversación
     turns: Sequence[Turn]
     # Lo que responde el servidor a cada intento, en orden; cuando se acaba, 200.
     server: Sequence[ServerReply] = ()
@@ -56,7 +68,7 @@ SCENARIOS: Sequence[Scenario] = (
     Scenario(
         key="todo_bien",
         title="deuda, todo bien",
-        agent=DebtAgent,
+        make_agent=debt_agent,
         turns=(
             (
                 "Perfecto, apunto 150,50 € para el 1 de diciembre.",
@@ -67,7 +79,7 @@ SCENARIOS: Sequence[Scenario] = (
     Scenario(
         key="poco_a_poco",
         title="deuda, el cliente da los datos poco a poco",
-        agent=DebtAgent,
+        make_agent=debt_agent,
         turns=(
             (
                 "De acuerdo, el 1 de diciembre. ¿Qué importe podrá pagar?",
@@ -82,7 +94,7 @@ SCENARIOS: Sequence[Scenario] = (
     Scenario(
         key="repite_y_corrige",
         title="deuda, el cliente repite y corrige",
-        agent=DebtAgent,
+        make_agent=debt_agent,
         turns=(
             (
                 "Perfecto, apunto 150,50 € para el 1 de diciembre.",
@@ -103,7 +115,7 @@ SCENARIOS: Sequence[Scenario] = (
     Scenario(
         key="datos_raros",
         title="deuda, datos raros que se descartan",
-        agent=DebtAgent,
+        make_agent=debt_agent,
         turns=(
             (
                 "El importe tiene que ser positivo.",
@@ -121,14 +133,14 @@ SCENARIOS: Sequence[Scenario] = (
     Scenario(
         key="reintento_salva",
         title="asistencia, el reintento salva el envío",
-        agent=AssistanceAgent,
+        make_agent=AssistanceAgent,
         turns=(("Tomo nota de su solicitud.", {"request": "  Cambiar la dirección de envío  "}),),
         server=(503, 200),
     ),
     Scenario(
         key="reintentos_agotados",
         title="asistencia, falla por la política de reintentos",
-        agent=AssistanceAgent,
+        make_agent=AssistanceAgent,
         turns=(
             ("Tomo nota de su solicitud.", {"request": "Enviar una copia de la factura"}),
             # Lo fallido no cuenta como enviado: al repetirlo se envía de nuevo.
@@ -139,14 +151,14 @@ SCENARIOS: Sequence[Scenario] = (
     Scenario(
         key="error_4xx",
         title="asistencia, un 400 no se reintenta",
-        agent=AssistanceAgent,
+        make_agent=AssistanceAgent,
         turns=(("Tomo nota de su solicitud.", {"request": "Darme de baja"}),),
         server=(400,),
     ),
     Scenario(
         key="parser_roto",
         title="asistencia, el parser devuelve algo que no es un dict",
-        agent=AssistanceAgent,
+        make_agent=AssistanceAgent,
         turns=(
             ("Tomo nota de su solicitud.", ["esto", "no", "es", "un", "dict"]),
             ("Tomo nota de su solicitud.", {"request": "Hablar con un agente"}),
@@ -171,9 +183,8 @@ def build_agent(scenario: Scenario, client: HttpClient, settings: Settings) -> B
     conversation = ConversationModel([reply for reply, _ in scenario.turns])
     parser = ParserModel([parsed for _, parsed in scenario.turns])
     sender = HttpActionSender(client, settings.api_token)
-    if scenario.agent is DebtAgent:
-        return DebtAgent(conversation, parser, sender, today=lambda: DEMO_TODAY)
-    return scenario.agent(conversation, parser, sender)
+
+    return scenario.make_agent(conversation, parser, sender)
 
 
 def run_conversation(agent: BaseAgent, turns: Sequence[Turn], out: TextIO) -> list[TurnResult]:
@@ -244,6 +255,9 @@ def run_demo(
 
 def main() -> None:
     """Punto de entrada: el log y el resumen de los turnos salen juntos y en orden por stdout."""
+    # En Windows, al redirigir la salida a un archivo se usa cp1252 y «€» o «ñ» salen mal.
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(encoding="utf-8")
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)-7s %(name)s - %(message)s",

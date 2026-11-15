@@ -72,13 +72,13 @@ class TestEachStepLeavesItsLine:
         assert ACTION in record.getMessage()
 
     def test_missing_fields_logs_info_naming_only_the_missing_field(self, make_agent, caplog):
-        """LOGS: faltan datos -> INFO que nombra el campo que falta, no el que llegó."""
+        """LOGS: faltan o no son válidos -> INFO que nombra el campo que falta, no el que llegó."""
         agent, client = make_agent(["Dígame."], [{"commitment_date": "2026-12-01"}])
 
         with caplog.at_level(logging.DEBUG, logger=LOGGER):
             agent.handle_turn()
 
-        record = _only(caplog, "faltan datos")
+        record = _only(caplog, "faltan o no son válidos")
         assert record.levelno == logging.INFO
         assert ACTION in record.getMessage()
         assert "committed_amount" in record.getMessage()
@@ -93,7 +93,7 @@ class TestEachStepLeavesItsLine:
         with caplog.at_level(logging.DEBUG, logger=LOGGER):
             agent.handle_turn()
 
-        message = _only(caplog, "faltan datos").getMessage()
+        message = _only(caplog, "faltan o no son válidos").getMessage()
         assert "commitment_date" in message
         assert "committed_amount" in message
 
@@ -108,7 +108,7 @@ class TestEachStepLeavesItsLine:
         record = _only(caplog, "no se cumplen las condiciones")
         assert record.levelno == logging.INFO
         assert "never_action" in record.getMessage()
-        assert not [r for r in _records(caplog) if "faltan datos" in r.getMessage()]
+        assert not [r for r in _records(caplog) if "faltan o no son válidos" in r.getMessage()]
         assert client.requests == []
         _assert_no_client_values(caplog, extra=("secreto",))
 
