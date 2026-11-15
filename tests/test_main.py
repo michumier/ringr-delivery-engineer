@@ -55,12 +55,12 @@ def test_demo_returns_one_result_per_scenario_in_order(demo):
 
 
 def test_todo_bien_sends_in_its_only_turn(demo):
-    """DEMO2 y PC-5: con fecha e importe válidos se envía."""
+    """DEMO2, RF-8 y CA-2: con fecha e importe válidos se envía."""
     assert _statuses(demo[0], "todo_bien") == [ActionStatus.SENT]
 
 
 def test_poco_a_poco_does_not_send_until_all_data_arrives(demo):
-    """DEMO2, PC-5 y PC-7: sin importe no se envía; al llegar el importe, sí."""
+    """DEMO2, RF-16 y AMB-12: sin importe no se envía; al llegar el importe, sí."""
     assert _statuses(demo[0], "poco_a_poco") == [ActionStatus.NOT_REQUIRED, ActionStatus.SENT]
 
 
@@ -72,7 +72,7 @@ def test_repite_y_corrige_sends_detects_duplicate_and_sends_the_correction(demo)
 
 
 def test_datos_raros_are_discarded_with_one_warning_each(demo):
-    """DEMO2, AMB-2 y AMB-4: importe negativo o ambiguo, fecha inexistente, pasada o texto."""
+    """DEMO2, AMB-2 y AMB-3: importe negativo o ambiguo, fecha inexistente, pasada o texto."""
     turns = demo[0]["datos_raros"]
 
     assert [r.action_status for r in turns] == [ActionStatus.NOT_REQUIRED] * 5
@@ -81,7 +81,7 @@ def test_datos_raros_are_discarded_with_one_warning_each(demo):
 
 
 def test_reintento_salva_sends_at_the_second_attempt(demo):
-    """DEMO2 y PC-8: un 503 y luego un 200 -> SENT con 2 intentos."""
+    """DEMO2, AMB-4 y PC-7.1: un 503 y luego un 200 -> SENT con 2 intentos."""
     (turn,) = demo[0]["reintento_salva"]
 
     assert turn.action_status is ActionStatus.SENT
@@ -89,7 +89,7 @@ def test_reintento_salva_sends_at_the_second_attempt(demo):
 
 
 def test_reintentos_agotados_fails_with_emergency_reply_then_sends(demo):
-    """DEMO2 y PC-8: 3 intentos fallidos -> respuesta de emergencia; lo fallido se reenvía."""
+    """DEMO2, AMB-4, PC-7.2 y PC-8: 3 intentos fallidos -> emergencia; lo fallido se reenvía."""
     failed, sent = demo[0]["reintentos_agotados"]
 
     assert failed.action_status is ActionStatus.FAILED
@@ -100,7 +100,7 @@ def test_reintentos_agotados_fails_with_emergency_reply_then_sends(demo):
 
 
 def test_error_4xx_fails_without_retrying(demo):
-    """DEMO2 y PC-8: un 400 no se reintenta -> FAILED con 1 intento."""
+    """DEMO2 y AMB-4: un 400 no se reintenta -> FAILED con 1 intento."""
     (turn,) = demo[0]["error_4xx"]
 
     assert turn.action_status is ActionStatus.FAILED
@@ -117,7 +117,7 @@ def test_parser_roto_does_not_send_and_the_next_turn_does(demo):
 
 
 def test_sleep_waits_follow_the_backoff(demo):
-    """PC-8: backoff exponencial 0.2 s (1 reintento) y 0.2 s, 0.4 s (2 reintentos)."""
+    """AMB-4: backoff exponencial 0.2 s (1 reintento) y 0.2 s, 0.4 s (2 reintentos)."""
     _, sleeps, _ = demo
 
     assert sleeps == [0.2, 0.2, 0.4]

@@ -15,7 +15,8 @@ class AssistanceAgent(BaseAgent):
     action_name = ActionName.REGISTER_REQUEST
     action_url = "https://api.ringr.assistance/v1/request"
 
-    # Se crea una vez, como en DebtAgent; de solo lectura porque se comparte entre instancias.
+    # Se crea una vez, a nivel de clase, y de solo lectura porque se comparte entre instancias.
+    # DebtAgent crea los suyos en `__init__` porque su `DateField` necesita el `today` inyectado.
     _fields: ClassVar[Mapping[str, FieldNormalizer]] = MappingProxyType(
         {FieldName.REQUEST: TextField()}
     )
