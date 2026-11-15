@@ -1,7 +1,4 @@
-"""Clase `BaseAgent` (Template Method) con `handle_turn`.
-
-Los duplicados se integran en el paso 5.
-"""
+"""Clase `BaseAgent` (Template Method) con `handle_turn`."""
 
 import logging
 from abc import ABC, abstractmethod
@@ -9,6 +6,7 @@ from collections.abc import Mapping
 from typing import Any, ClassVar, final
 
 from ringr_agents.domain.constants import EMERGENCY_REPLY
+from ringr_agents.domain.dedup import SentActionRegistry, fingerprint
 from ringr_agents.domain.enums import ActionStatus, TurnError
 from ringr_agents.domain.fields import FieldNormalizer, normalize
 from ringr_agents.domain.ports import ActionSender
@@ -33,10 +31,13 @@ class BaseAgent(ABC):
         conversation_model: ConversationModel,
         parser_model: ParserModel,
         sender: ActionSender,
+        registry: SentActionRegistry | None = None,
     ) -> None:
         self._conversation_model = conversation_model
         self._parser_model = parser_model
         self._sender = sender
+        # Opcional (PC-9): por defecto, uno nuevo y vacío por agente, es decir, por conversación.
+        self._registry = registry if registry is not None else SentActionRegistry()
 
     @abstractmethod
     def fields(self) -> Mapping[str, FieldNormalizer]:
@@ -50,11 +51,11 @@ class BaseAgent(ABC):
     def handle_turn(self) -> TurnResult:
         """Ejecuta un turno en orden fijo y devuelve su `TurnResult` (Template Method, PC-1).
 
-        Orden (AMB-11): responder, parsear, normalizar, decidir, enviar y devolver.
+        Orden (AMB-11): responder, parsear, normalizar, decidir, duplicados, enviar y devolver.
         Si falla un modelo o el envío acaba en `FAILED`, el cliente recibe `EMERGENCY_REPLY`
         y el fallo queda en `errors` (AMB-11, PC-8). Si falla cualquier modelo no se envía
         (PC-8.2). `ScriptExhaustedError` no se captura: es un guion mal preparado (PC-8.3).
-        Los duplicados se añaden en el paso 5.
+        Lo ya enviado con éxito en la conversación no se reenvía: queda `DUPLICATE` (AMB-1).
         """
         errors: list[TurnError] = []
 
@@ -96,12 +97,24 @@ class BaseAgent(ABC):
                 errors=tuple(errors),
             )
 
-        # 5. Duplicados: en el paso 5.
+        # 5. Duplicados. La misma acción con los mismos datos limpios ya se envió: no se repite,
+        # y el cliente recibe la respuesta normal porque ya está registrado (AMB-1, PC-5).
+        fp = fingerprint(self.action_name, normalized.data)
+        if self._registry.was_sent(fp):
+            logger.info("%s: duplicado, no se reenvía", self.action_name)
+            return TurnResult(
+                reply=reply,
+                data=normalized.data,
+                action_status=ActionStatus.DUPLICATE,
+                warnings=normalized.warnings,
+            )
 
         # 6. Enviar. `send` no lanza: un fallo llega como `ok=False` (AMB-4).
         send_result = self._sender.send(self.action_url, normalized.data)
         if send_result.ok:
             status = ActionStatus.SENT
+            # Solo se marca lo que ha llegado: un FAILED se puede reenviar en otro turno.
+            self._registry.mark_sent(fp)
         else:
             # El cliente no puede creer que está registrado si no lo está (PC-8).
             status = ActionStatus.FAILED
