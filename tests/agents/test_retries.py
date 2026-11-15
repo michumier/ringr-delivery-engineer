@@ -4,7 +4,7 @@ import pytest
 
 from ringr_agents.agents import DebtAgent
 from ringr_agents.domain.constants import EMERGENCY_REPLY
-from ringr_agents.domain.enums import ActionStatus
+from ringr_agents.domain.enums import ActionStatus, TurnError
 from ringr_agents.infrastructure.http import (
     FakeHttpClient,
     HttpActionSender,
@@ -73,6 +73,8 @@ def test_three_transport_errors_end_failed_without_status_code(make_agent):
     result = agent.handle_turn()
 
     assert result.action_status is ActionStatus.FAILED
+    assert result.reply == EMERGENCY_REPLY
+    assert result.errors == (TurnError.SEND_FAILED,)
     assert result.send_result.status_code is None
     assert result.send_result.attempts == 3
     assert len(fake.requests) == 3

@@ -30,7 +30,7 @@ class RetryPolicy:
             raise ValueError(f"base_delay no puede ser negativo, no {self.base_delay}")
 
     def delay_before(self, attempt: int) -> float:
-        """Espera antes del intento `attempt` (2, 3...): se dobla cada vez (0.2, 0.4...)."""
+        """Espera antes del intento `attempt` (solo tiene sentido desde el 2.º): 0.2, 0.4..."""
         return self.base_delay * 2 ** (attempt - 2)
 
 
@@ -58,6 +58,9 @@ class RetryingHttpClient:
         los intentos. Si el último intento fue un error de transporte, lo relanza.
         """
         attempts = self._policy.max_attempts
+        # La URL y la clave permiten emparejar cada aviso con su envío; ninguna es secreta.
+        url = request.url
+        key = request.headers.get("Idempotency-Key")
         for attempt in range(1, attempts + 1):
             if attempt > 1:
                 self._policy.sleep(self._policy.delay_before(attempt))
@@ -65,10 +68,27 @@ class RetryingHttpClient:
                 response = self._inner.send(request)
             except TransportError as error:
                 if attempt == attempts:
-                    raise TransportError(str(error), attempts=attempt) from error
-                logger.warning("Intento %s/%s sin respuesta: %s", attempt, attempts, error)
+                    # Se relanza el mismo error (y su tipo concreto) con los intentos apuntados.
+                    error.attempts = attempt
+                    raise
+                logger.warning(
+                    "Intento %s/%s a %s sin respuesta (Idempotency-Key=%s): %s",
+                    attempt,
+                    attempts,
+                    url,
+                    key,
+                    error,
+                )
                 continue
             if not _is_retryable(response.status_code) or attempt == attempts:
                 return replace(response, attempts=attempt)
-            logger.warning("Intento %s/%s: código %s", attempt, attempts, response.status_code)
+            logger.warning(
+                "Intento %s/%s a %s (Idempotency-Key=%s): código %s",
+                attempt,
+                attempts,
+                url,
+                key,
+                response.status_code,
+            )
+        # Inalcanzable: el último intento siempre devuelve o lanza. Está para el tipado.
         raise AssertionError("inalcanzable: el último intento siempre devuelve o lanza")

@@ -121,6 +121,21 @@ class TestTransportErrors:
         assert raised.value.attempts == 3
         assert len(fake.requests) == 3
 
+    def test_the_last_transport_error_is_relayed_as_is(self):
+        """PC-7.2: se relanza el mismo error del último intento, conservando su tipo."""
+
+        class TimeoutError_(TransportError):
+            pass
+
+        last = TimeoutError_("timeout")
+        client, _, _ = make_client([TransportError("t1"), TransportError("t2"), last])
+
+        with pytest.raises(TimeoutError_) as raised:
+            client.send(make_request())
+
+        assert raised.value is last
+        assert raised.value.attempts == 3
+
     def test_mixed_503_transport_error_then_200(self):
         """PC-7.2: 503, luego error de transporte y luego 200 da attempts=3."""
         client, fake, _ = make_client([503, TransportError("corte"), 200])
@@ -247,6 +262,18 @@ class TestRetryLog:
 
         warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
         assert len(warnings) == 2
+
+    def test_retry_warnings_identify_the_send(self, caplog):
+        """AMB-10: cada aviso lleva la URL y la Idempotency-Key, para saber de qué envío es."""
+        client, _, _ = make_client([503, TransportError("corte"), 200])
+
+        with caplog.at_level(logging.WARNING, logger=RETRY_LOGGER):
+            client.send(make_request())
+
+        for record in caplog.records:
+            message = record.getMessage()
+            assert "https://api.ringr.debt/v1/commitment" in message
+            assert "clave-fija" in message
 
     def test_first_attempt_ok_logs_no_warning(self, caplog):
         """AMB-10: si no hay reintentos, no hay WARNING."""
