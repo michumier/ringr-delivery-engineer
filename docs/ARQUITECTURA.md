@@ -146,6 +146,7 @@ class BaseAgent(ABC):
                  sender: ActionSender, registry: SentActionRegistry | None = None) -> None: ...
 
     def handle_turn(self) -> TurnResult: ...        # la plantilla: no se sobrescribe
+    # Cada paso vive en un método privado pequeño: _answer, _parse y _send (SOLID-1).
 
     @abstractmethod
     def fields(self) -> Mapping[str, FieldNormalizer]: ...                   # PC-3
@@ -185,7 +186,7 @@ Sin interfaz común ni subclases: el enunciado dice que no hacen falta. Por eso 
 
 #### `infrastructure/http/`: envío y HTTP simulado
 
-**`HttpActionSender`** (`http/sender.py`): cumple `ActionSender`. Construye la request una sola vez y se la da a su `HttpClient`. No reintenta y nunca lanza por culpa del HTTP.
+**`HttpActionSender`** (`http/sender.py`): cumple `ActionSender`. Construye la request una sola vez y se la da a su `HttpClient`. No reintenta y nunca lanza: un error de transporte o cualquier otro error del cliente acaba en `ok=False` (SEND-1).
 ```python
 class HttpActionSender:
     def __init__(self, client: HttpClient, token: str,
@@ -198,7 +199,7 @@ La request que construye:
 
 | Parte | Valor | Ver |
 |---|---|---|
-| Método y URL | `POST` a la `action_url` del agente | RF-9, RF-10 |
+| Método y URL | `POST` a la `action_url` del agente | RF-8, RF-10 |
 | `Authorization` | `Bearer <token>` (el token llega desde `Settings`) | RF-12, PC-10 |
 | `Content-Type` | `application/json` | AMB-7 |
 | `Idempotency-Key` | UUID por envío, el mismo en sus reintentos | AMB-4, PC-6 |
@@ -292,7 +293,7 @@ Aquí no hay **controller** ni **endpoint** porque el sistema no recibe peticion
 
 | Añadir... | Archivos que se tocan | Qué no se toca |
 |---|---|---|
-| **(a) Un agente** | `agents/<nuevo>/agent.py` y su `__init__.py` (subclase con sus 4 huecos); una línea en `agents/__init__.py`; si se quiere, sus nombres en `domain/enums.py` (no es obligatorio, ENUM-2); sus tests en `tests/agents/<nuevo>/`. | `BaseAgent`, los otros agentes, el envío, los reintentos, los duplicados. |
+| **(a) Un agente** | `agents/<nuevo>/agent.py` y su `__init__.py` (subclase con sus 4 huecos); una línea en `agents/__init__.py`; si se quiere, sus nombres en `domain/enums.py` (no es obligatorio, ENUM-2); sus tests en `tests/agents/test_<nuevo>_agent.py`. | `BaseAgent`, los otros agentes, el envío, los reintentos, los duplicados. |
 | **(b) Una acción con un tipo de dato nuevo** (p. ej. teléfono) | Una estrategia nueva en `domain/fields/normalizers.py` y el agente que la declara. | `normalize`, `BaseAgent`. |
 | **(c) Una integración nueva** | Si es otro cliente HTTP: una clase que cumpla `HttpClient` en `infrastructure/http/` (gana los reintentos al envolverla). Si no es HTTP (una cola): una clase que cumpla `ActionSender` en una carpeta nueva de `infrastructure/`. En los dos casos, el montaje en `__main__.py`. | `domain/`, los agentes, `handle_turn`, `HttpActionSender`. |
 
@@ -307,8 +308,8 @@ Intermedia entre capas y funcionalidad: `domain/` (lo propio del negocio), `agen
 ```
 entrega/
 ├── pyproject.toml                  # Python >= 3.11; pytest y ruff (desarrollo) y su configuración
-├── README.md                       # lo redacta Miguel (fase 5)
-├── .gitignore                      # .venv, cachés
+├── README.md                       # qué hace, cómo se ejecuta y por qué está hecho así
+├── .gitignore                      # .venv, cachés y notas/ (no se entrega)
 ├── .github/workflows/ci.yml        # ruff + pytest en cada PR (FLU-1)
 ├── CLAUDE.md                       # flujo de trabajo con IA, copiado al final (FLU-2)
 ├── .claude/agents/                 # agentes, copiados al final (FLU-2)
@@ -317,9 +318,9 @@ entrega/
 │   ├── REQUISITOS.md               # requisitos y ambigüedades resueltas
 │   ├── DECISIONES.md               # decisiones de Miguel y su porqué
 │   ├── ARQUITECTURA.md             # este documento
-│   └── PLAN.md                     # tests, plan de construcción y piezas de Miguel
+│   └── PLAN.md                     # estrategia de tests y plan de construcción
 ├── src/ringr_agents/
-│   ├── __init__.py                 # exporta las clases públicas
+│   ├── __init__.py                 # solo el docstring del paquete
 │   ├── __main__.py                 # raíz de composición y demo
 │   ├── domain/                     # lo propio del negocio; no depende de nada
 │   │   ├── enums.py                # ActionStatus, TurnError, FieldName, ActionName (StrEnum)
@@ -350,23 +351,31 @@ entrega/
 │           └── sender.py           # HttpActionSender
 └── tests/                          # misma estructura que src/ringr_agents/
     ├── conftest.py                 # fixtures comunes y bloqueo de red (CA-14)
+    ├── test_skeleton.py            # todos los módulos se importan; la red está bloqueada
+    ├── test_main.py                # la demo: sus 8 escenarios, el log y la salida
     ├── domain/
+    │   ├── test_enums.py
+    │   ├── test_results.py
     │   ├── test_dedup.py
     │   └── fields/
     │       ├── test_normalizers.py
     │       └── test_normalize.py
     ├── agents/
-    │   ├── test_base_agent.py
-    │   ├── debt/test_debt_agent.py
-    │   └── assistance/test_assistance_agent.py
-    ├── infrastructure/
-    │   ├── test_config.py
-    │   ├── models/test_models.py
-    │   └── http/
-    │       ├── test_fake_client.py
-    │       ├── test_sender.py
-    │       └── test_retry.py
-    └── test_main.py                # prueba de humo de la demo
+    │   ├── conftest.py             # fixtures de los agentes (modelos con guion, sender, cliente)
+    │   ├── constants.py            # token, Idempotency-Key fija y «hoy» de los tests
+    │   ├── test_base_agent.py      # handle_turn con un tercer agente de prueba (CA-13)
+    │   ├── test_debt_agent.py
+    │   ├── test_assistance_agent.py
+    │   ├── test_duplicates.py
+    │   ├── test_retries.py         # reintentos de punta a punta
+    │   └── test_turn_log.py        # una línea de log por paso, sin datos del cliente
+    └── infrastructure/
+        ├── test_config.py
+        ├── models/test_models.py
+        └── http/
+            ├── test_fake_client.py
+            ├── test_sender.py
+            └── test_retry.py
 ```
 
-Cada subpaquete lleva su `__init__.py`, que reexporta sus clases públicas (`from ringr_agents.domain.fields import DateField`). Los archivos de test tienen nombres distintos entre carpetas, para que pytest no los confunda.
+Cada subpaquete lleva su `__init__.py`. Los que se usan desde fuera (`agents`, `domain.fields`, `infrastructure.http` e `infrastructure.models`) reexportan sus clases públicas (`from ringr_agents.domain.fields import DateField`); el paquete raíz, `domain` e `infrastructure` solo tienen el docstring. Los archivos de test tienen nombres distintos entre carpetas, para que pytest no los confunda.

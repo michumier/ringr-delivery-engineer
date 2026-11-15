@@ -277,3 +277,43 @@ class TestTokenNeverLogged:
             sender.send(URL, {"request": "Hola"})
 
         assert "intentos 3" in caplog.records[-1].getMessage()
+
+
+class BrokenClient:
+    """Cliente que lanza un error que no es de transporte, como podría hacer uno real."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def send(self, request):
+        self.calls += 1
+        raise ValueError("certificado no válido")
+
+
+class TestUnexpectedClientError:
+    def test_an_unexpected_error_is_not_raised_and_counts_as_failed(self):
+        """SEND-1, AMB-11: un error que no es de transporte acaba en ok=False, sin lanzar."""
+        client = BrokenClient()
+        sender = HttpActionSender(client, TOKEN, new_idempotency_key=lambda: "k-9")
+
+        result = sender.send(URL, {"request": "hola"})
+
+        assert result.ok is False
+        assert result.status_code is None
+        assert result.attempts == 1
+        assert result.idempotency_key == "k-9"
+        assert client.calls == 1
+
+    def test_an_unexpected_error_logs_one_warning_with_its_type_and_no_token(self, caplog):
+        """SEND-1, PC-10: queda un WARNING con el tipo de error y la clave, sin el token."""
+        sender = HttpActionSender(BrokenClient(), TOKEN, new_idempotency_key=lambda: "k-9")
+
+        with caplog.at_level(logging.INFO, logger=SENDER_LOGGER):
+            sender.send(URL, {"request": "hola"})
+
+        warning = caplog.records[-1]
+        assert warning.levelno == logging.WARNING
+        assert "ValueError: certificado no válido" in warning.getMessage()
+        assert "k-9" in warning.getMessage()
+        assert warning.exc_info is None
+        assert TOKEN not in caplog.text

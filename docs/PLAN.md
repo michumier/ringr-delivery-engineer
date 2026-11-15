@@ -1,6 +1,6 @@
 # PLAN
 
-Estrategia de tests, plan de construcción y piezas que escribe Miguel. El diseño está en `ARQUITECTURA.md`; las reglas, en `REQUISITOS.md` y `DECISIONES.md`.
+Estrategia de tests y plan de construcción. El diseño está en `ARQUITECTURA.md`; las reglas, en `REQUISITOS.md` y `DECISIONES.md`.
 
 Las rutas siguen la estructura de carpetas decidida en CARP-1 (`ARQUITECTURA.md`, sección 6), relativas a `src/ringr_agents/`. Los tests imitan esa estructura dentro de `tests/`.
 
@@ -36,21 +36,9 @@ Orden decidido por Miguel (ver `PLAN` en `DECISIONES.md`): **primero un camino c
 | 1 | **Esqueleto + CI:** `pyproject.toml`, las carpetas `domain/`, `agents/` (con `debt/` y `assistance/`) e `infrastructure/` (con `models/` y `http/`) con su `__init__.py` y todos los módulos creados con su docstring (sin código), `.gitignore`, `.github/workflows/ci.yml` (ruff + pytest), `tests/conftest.py` con el bloqueo de red y un test trivial. | `ruff` y `pytest` pasan en local y en GitHub Actions. |
 | 2 | **Vocabulario** (`domain/enums.py`, `domain/constants.py`), **modelos simulados** (`infrastructure/models/`) y **normalizadores** (`domain/fields/`). | Guiones con error al agotarse; todas las reglas de AMB-2 y AMB-3, con el borde de «hoy». |
 | 3 | **Resultado del envío y su interfaz** (`SendResult` en `domain/results.py`, `ActionSender` en `domain/ports.py`), **HTTP simulado** (`infrastructure/http/client.py`, `infrastructure/http/fake_client.py`), **construcción de la request** (`infrastructure/http/sender.py`) y **configuración** (`infrastructure/config.py`, con el token y los valores de los reintentos). | `FakeHttpClient` guarda requests y devuelve códigos configurables; URL, cabeceras y body exactos. Sin reintentos (siempre 1 intento). |
-| 4 | **`TurnResult`** (`domain/results.py`), **`BaseAgent.handle_turn`** (`agents/base_agent.py`), **`DebtAgent`** (`agents/debt/agent.py`) y **`AssistanceAgent`** (`agents/assistance/agent.py`). *(Pieza de Miguel: `handle_turn`.)* | Los dos agentes de punta a punta (CA-1 a CA-12 salvo duplicados y reintentos), fallos de modelos con su `TurnError`, PC-8, sin excepciones hacia fuera salvo `ScriptExhaustedError`. **Desde aquí hay algo entregable.** |
-| 5 | **Duplicados** (`domain/dedup.py`) integrados en `handle_turn`, con el `registry` opcional en el constructor de `BaseAgent` (PC-9 B). *(Pieza de Miguel.)* | Huella y registro; no se reenvía lo idéntico; un `FAILED` no se marca. |
-| 6 | **Reintentos con el Decorator** (`infrastructure/http/retry.py`; usa `max_attempts` y `base_delay`, que ya están en `Settings` desde el paso 3). *(Pieza de Miguel: `RetryingHttpClient.send`.)* | 3 intentos, solo 5xx y errores de transporte, esperas crecientes, misma clave. **Sin tocar `handle_turn`, los agentes ni `HttpActionSender`.** |
-| 7 | **Demo** (`__main__.py`). | `python -m ringr_agents` muestra varios turnos (feliz, duplicado, corrección, fallo con reintento) y su log. |
+| 4 | **`TurnResult`** (`domain/results.py`), **`BaseAgent.handle_turn`** (`agents/base_agent.py`), **`DebtAgent`** (`agents/debt/agent.py`) y **`AssistanceAgent`** (`agents/assistance/agent.py`). | Los dos agentes de punta a punta (CA-1 a CA-12 salvo duplicados y reintentos), fallos de modelos con su `TurnError`, PC-8, sin excepciones hacia fuera salvo `ScriptExhaustedError`. **Desde aquí hay algo entregable.** |
+| 5 | **Duplicados** (`domain/dedup.py`) integrados en `handle_turn`, con el `registry` opcional en el constructor de `BaseAgent` (PC-9 B). | Huella y registro; no se reenvía lo idéntico; un `FAILED` no se marca. |
+| 6 | **Reintentos con el Decorator** (`infrastructure/http/retry.py`; usa `max_attempts` y `base_delay`, que ya están en `Settings` desde el paso 3). | 3 intentos, solo 5xx y errores de transporte, esperas crecientes, misma clave. **Sin tocar `handle_turn`, los agentes ni `HttpActionSender`.** |
+| 7 | **Demo** (`__main__.py`). | `python -m ringr_agents` muestra varios turnos (feliz, duplicado, corrección, fallo con reintento) y su log. Después se amplió a 8 escenarios (DEMO2). |
 
 Después: verificación, revisión y README (fases 4 y 5 del flujo).
-
----
-
-## 3. Piezas que escribe Miguel
-
-Decididas por Miguel (ver `PIEZAS` en `DECISIONES.md`). El constructor las deja con la firma, un docstring y `NotImplementedError`.
-
-1. **`BaseAgent.handle_turn`** (`agents/base_agent.py`, paso 4). El corazón del enunciado: el orden de los pasos, qué pasa en cada fallo, qué `TurnError` se anota, cuándo se usa la respuesta de emergencia, por qué no se envía si falla `answer_user` y por qué `ScriptExhaustedError` sí sale. Refleja AMB-2, AMB-5, AMB-11 y PC-8. En el paso 4, todavía sin duplicados.
-2. **El control de duplicados** (`domain/dedup.py`, paso 5): `fingerprint`, `SentActionRegistry` y su uso dentro de `handle_turn` (consultar antes de enviar, marcar solo tras un envío correcto). La otra garantía explícita del enunciado (RF-17), con AMB-1 y PC-5.
-3. **`RetryingHttpClient.send`** (`infrastructure/http/retry.py`, paso 6). La política de reintentos de AMB-4 (3 intentos, solo 5xx y errores de transporte, espera creciente, la misma request y por tanto la misma `Idempotency-Key`) y el Decorator de PC-7.1 B, que se añade sin tocar lo anterior.
-
-**Pendiente de Miguel:** el porqué de esta elección todavía no está apuntado en `DECISIONES.md` (fila `PIEZAS`).

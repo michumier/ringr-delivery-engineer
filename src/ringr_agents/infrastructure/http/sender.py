@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 class HttpActionSender:
     """Cumple `ActionSender`. Construye la request una vez y se la da a su `HttpClient`.
 
-    No reintenta (eso lo hace `RetryingHttpClient`) y nunca lanza por culpa del HTTP.
+    No reintenta (eso lo hace `RetryingHttpClient`) y nunca lanza: cualquier error del
+    cliente HTTP acaba en `ok=False` (SEND-1).
     """
 
     def __init__(
@@ -29,7 +30,7 @@ class HttpActionSender:
         self._new_idempotency_key = new_idempotency_key
 
     def send(self, url: str, data: Mapping[str, object | None]) -> SendResult:
-        """Envía los datos y resume el resultado; un error de transporte no se propaga."""
+        """Envía los datos y resume el resultado; ningún error del cliente se propaga."""
         key = self._new_idempotency_key()
         request = self.build_request(url, data, key)
         logger.info("Enviando POST a %s (Idempotency-Key=%s)", url, key)
@@ -46,6 +47,18 @@ class HttpActionSender:
             return SendResult(
                 ok=False, attempts=error.attempts, status_code=None, idempotency_key=key
             )
+        except Exception as error:
+            # Un cliente real puede lanzar otros errores (certificado, error de programación...).
+            # Se tratan como un envío fallido para que el cliente nunca se quede sin respuesta
+            # (AMB-11, SEND-1). No se reintentan: no se sabe si es seguro repetirlos.
+            logger.warning(
+                "Error inesperado al enviar a %s (%s: %s) (Idempotency-Key=%s)",
+                url,
+                type(error).__name__,
+                error,
+                key,
+            )
+            return SendResult(ok=False, attempts=1, status_code=None, idempotency_key=key)
         ok = 200 <= response.status_code < 300
         logger.log(
             logging.INFO if ok else logging.WARNING,

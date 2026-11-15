@@ -1,10 +1,10 @@
 # REQUISITOS
 
-Fuente: enunciado «Prueba técnica: Delivery Engineer» (Ringr). Todo lo que sale literalmente del enunciado va citado. Lo que el enunciado no cierra está en la sección de ambigüedades y **no está decidido**.
+Fuente: enunciado «Prueba técnica: Delivery Engineer» (Ringr). Todo lo que sale literalmente del enunciado va citado. Lo que el enunciado no cierra está en la sección de ambigüedades; todas están resueltas y su decisión, con el porqué, está en `DECISIONES.md`.
 
 ## 1. Contexto
 
-Se pide un pequeño proyecto de código orientado a objetos en Python: agentes conversacionales que, en cada turno, responden al usuario, extraen información estructurada de la conversación y deciden si ejecutan una acción externa mediante una integración HTTP simulada. Hay dos agentes (`DebtAgent` y `AssistanceAgent`) y dos modelos genéricos simulados (`ConversationModel` y `ParserModel`). El enunciado dice que importan «mucho más las decisiones técnicas que tomes y los razonamientos que te lleven a ellas que la solución concreta». La entrega es por correo; el correo de Ringr indica «resuelve las potenciales ambigüedades a tu criterio».
+Se pide un pequeño proyecto de código orientado a objetos en Python: agentes conversacionales que, en cada turno, responden al usuario, extraen información estructurada de la conversación y deciden si ejecutan una acción externa mediante una integración HTTP simulada. Hay dos agentes (`DebtAgent` y `AssistanceAgent`) y dos modelos genéricos simulados (`ConversationModel` y `ParserModel`). El enunciado dice que importan «mucho más las decisiones técnicas que tomes y los razonamientos que te lleven a ellas que la solución concreta». La entrega es un repositorio de GitHub; el correo de Ringr indica «resuelve las potenciales ambigüedades a tu criterio».
 
 ## 2. Requisitos funcionales
 
@@ -75,7 +75,7 @@ Se pide un pequeño proyecto de código orientado a objetos en Python: agentes c
 
 ## 4. Criterios de aceptación
 
-Convención: `Debt` = `DebtAgent`; `Asist` = `AssistanceAgent`. Los valores son ejemplos para los tests; los casos marcados (AMB-n) dependen de una decisión pendiente.
+Convención: `Debt` = `DebtAgent`; `Asist` = `AssistanceAgent`. Los valores son ejemplos para los tests; los casos marcados (AMB-n) siguen la decisión de esa ambigüedad (ver `DECISIONES.md`).
 
 **CA-1 (RF-1, RF-2, RF-3, RF-6).**
 - Dado un `DebtAgent` con un `ConversationModel` simulado que responde `"Perfecto, queda anotado."` y un `ParserModel` simulado que devuelve `{"commitment_date": None, "committed_amount": None}`,
@@ -151,7 +151,7 @@ Convención: `Debt` = `DebtAgent`; `Asist` = `AssistanceAgent`. Los valores son 
 
 ## 5. Ambigüedades
 
-> Ninguna está decidida. Las recomendaciones son del analista; la decisión es de Miguel.
+> Todas están resueltas. Cada una conserva sus opciones y la recomendación del analista; la decisión de Miguel va al final de cada una y, con su porqué, en `DECISIONES.md`.
 
 ### AMB-1. Qué cuenta como «duplicado» y en qué ámbito
 **Qué no está claro.** El enunciado dice «no se envían duplicados durante la conversación», sin definir «duplicado» (¿misma acción exacta, mismo tipo de acción?) ni ámbito. Importa porque es una de las dos garantías explícitas y el corazón de `handle_turn`.
