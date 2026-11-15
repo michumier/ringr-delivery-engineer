@@ -6,9 +6,9 @@ from collections.abc import Mapping
 from typing import Any, ClassVar, final
 
 from ringr_agents.domain.constants import EMERGENCY_REPLY
-from ringr_agents.domain.dedup import SentActionRegistry, fingerprint
+from ringr_agents.domain.dedup import Fingerprint, SentActionRegistry, fingerprint
 from ringr_agents.domain.enums import ActionStatus, TurnError
-from ringr_agents.domain.fields import FieldNormalizer, normalize
+from ringr_agents.domain.fields import FieldNormalizer, Normalized, normalize
 from ringr_agents.domain.ports import ActionSender
 from ringr_agents.domain.results import TurnResult
 from ringr_agents.infrastructure.models import (
@@ -56,39 +56,22 @@ class BaseAgent(ABC):
         y el fallo queda en `errors` (AMB-11, PC-8). Si falla cualquier modelo no se envía
         (PC-8.2). `ScriptExhaustedError` no se captura: es un guion mal preparado (PC-8.3).
         Lo ya enviado con éxito en la conversación no se reenvía: queda `DUPLICATE` (AMB-1).
+        Cada paso vive en su propio método pequeño; aquí solo queda el orden (SOLID-1).
         """
-        errors: list[TurnError] = []
+        logger.info("%s: empieza el turno", self.action_name)
 
-        # 1. Responder. Un fallo del modelo no deja al cliente sin respuesta (AMB-11).
-        reply = EMERGENCY_REPLY  # se sustituye por la respuesta del modelo si no falla
-        try:
-            reply = self._conversation_model.answer_user()
-        except ScriptExhaustedError:
-            raise  # antes que `except Exception`, que también la atraparía (PC-8.3)
-        except Exception:
-            logger.exception("%s: falló answer_user", self.action_name)
-            errors.append(TurnError.CONVERSATION_FAILED)
-
-        # 2. Parsear. Se llama aunque haya fallado el paso 1, para que los dos modelos
-        # sigan en el mismo turno y el resultado diga todo lo que ha fallado.
-        raw: Mapping[str, Any] = {}
-        try:
-            parsed = self._parser_model.parse_data()
-            # Un LLM puede devolver algo malformado: si no es un dict, cuenta como fallo.
-            if not isinstance(parsed, Mapping):
-                raise TypeError(f"parse_data devolvió {type(parsed).__name__}, no un dict")
-            raw = parsed
-        except ScriptExhaustedError:
-            raise
-        except Exception:
-            logger.exception("%s: falló parse_data", self.action_name)
-            errors.append(TurnError.PARSER_FAILED)
+        # 1 y 2. Responder y parsear. Se parsea aunque falle la respuesta, para que los dos
+        # modelos sigan en el mismo turno y el resultado diga todo lo que ha fallado.
+        reply, conversation_error = self._answer()
+        raw, parser_error = self._parse()
+        errors = [e for e in (conversation_error, parser_error) if e is not None]
 
         # 3. Normalizar. No lanza: lo inválido pasa a None con un aviso (AMB-2).
         normalized = normalize(raw, self.fields())
 
         # 4. Decidir. Con un modelo caído no se registra nada (PC-8.2).
         if errors or not self.should_execute(normalized.data):
+            self._log_not_executed(bool(errors), normalized.data)
             return TurnResult(
                 reply=EMERGENCY_REPLY if errors else reply,
                 data=normalized.data,
@@ -101,7 +84,10 @@ class BaseAgent(ABC):
         # y el cliente recibe la respuesta normal porque ya está registrado (AMB-1, PC-5).
         fp = fingerprint(self.action_name, normalized.data)
         if self._registry.was_sent(fp):
-            logger.info("%s: duplicado, no se reenvía", self.action_name)
+            logger.info(
+                "%s: estos mismos datos ya se enviaron en la conversación; no se reenvía",
+                self.action_name,
+            )
             return TurnResult(
                 reply=reply,
                 data=normalized.data,
@@ -109,24 +95,99 @@ class BaseAgent(ABC):
                 warnings=normalized.warnings,
             )
 
-        # 6. Enviar. `send` no lanza: un fallo llega como `ok=False` (AMB-4).
+        # 6 y 7. Enviar y devolver.
+        return self._send(fp, normalized, reply)
+
+    def _answer(self) -> tuple[str, TurnError | None]:
+        """Paso 1: la respuesta del modelo, o la de emergencia y el error si falla (AMB-11)."""
+        try:
+            return self._conversation_model.answer_user(), None
+        except ScriptExhaustedError:
+            raise  # antes que `except Exception`, que también la atraparía (PC-8.3)
+        except Exception as error:
+            self._log_model_failure("answer_user", error)
+            return EMERGENCY_REPLY, TurnError.CONVERSATION_FAILED
+
+    def _parse(self) -> tuple[Mapping[str, Any], TurnError | None]:
+        """Paso 2: los datos del parser, o un dict vacío y el error si falla (PC-8)."""
+        try:
+            parsed = self._parser_model.parse_data()
+            # Un LLM puede devolver algo malformado: si no es un dict, cuenta como fallo.
+            if not isinstance(parsed, Mapping):
+                raise TypeError(f"parse_data devolvió {type(parsed).__name__}, no un dict")
+            return parsed, None
+        except ScriptExhaustedError:
+            raise
+        except Exception as error:
+            self._log_model_failure("parse_data", error)
+            return {}, TurnError.PARSER_FAILED
+
+    def _send(self, fp: Fingerprint, normalized: Normalized, reply: str) -> TurnResult:
+        """Pasos 6 y 7: envía, apunta la huella si ha ido bien y construye el resultado.
+
+        `send` no lanza: un fallo llega como `ok=False` (AMB-4).
+        """
+        logger.info("%s: datos completos y nuevos; se ejecuta la acción", self.action_name)
         send_result = self._sender.send(self.action_url, normalized.data)
+        errors: tuple[TurnError, ...] = ()
         if send_result.ok:
             status = ActionStatus.SENT
             # Solo se marca lo que ha llegado: un FAILED se puede reenviar en otro turno.
             self._registry.mark_sent(fp)
+            logger.info(
+                "%s: acción registrada (código %s, intentos %s)",
+                self.action_name,
+                send_result.status_code,
+                send_result.attempts,
+            )
         else:
             # El cliente no puede creer que está registrado si no lo está (PC-8).
+            logger.warning(
+                "%s: la acción no se ha podido registrar (código %s, intentos %s); se "
+                "responde con el mensaje de emergencia y se podrá reenviar en otro turno",
+                self.action_name,
+                send_result.status_code,
+                send_result.attempts,
+            )
             status = ActionStatus.FAILED
-            errors.append(TurnError.SEND_FAILED)
+            errors = (TurnError.SEND_FAILED,)
             reply = EMERGENCY_REPLY
-
-        # 7. Devolver.
         return TurnResult(
             reply=reply,
             data=normalized.data,
             action_status=status,
             warnings=normalized.warnings,
-            errors=tuple(errors),
+            errors=errors,
             send_result=send_result,
         )
+
+    def _log_model_failure(self, method: str, error: Exception) -> None:
+        """Una sola línea con el método y el error, sin la traza completa (revisión PR 8)."""
+        logger.warning(
+            "%s: falló %s (%s: %s)", self.action_name, method, type(error).__name__, error
+        )
+
+    def _log_not_executed(self, model_failed: bool, data: Mapping[str, object | None]) -> None:
+        """Explica en el log por qué no se ejecuta la acción en este turno.
+
+        Nombra los campos, nunca sus valores: son datos del cliente (LOGS, PASO3). Un campo
+        está a `None` si no llegó o si llegó pero no era válido (AMB-2).
+        """
+        if model_failed:
+            logger.warning(
+                "%s: ha fallado un modelo; no se ejecuta la acción y se responde con el "
+                "mensaje de emergencia",
+                self.action_name,
+            )
+            return
+        missing = [str(name) for name, value in data.items() if value is None]
+        if missing:
+            logger.info(
+                "%s: faltan o no son válidos (%s); no se ejecuta la acción",
+                self.action_name,
+                ", ".join(missing),
+            )
+        else:
+            logger.info(
+                "%s: no se cumplen las condiciones; no se ejecuta la acción", self.action_name
+            )

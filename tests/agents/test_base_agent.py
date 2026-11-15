@@ -223,16 +223,20 @@ class TestFailureLogging:
             (["Hecho."], [RuntimeError("caído")], "parse_data"),
         ],
     )
-    def test_a_model_failure_is_logged_as_error(
+    def test_a_model_failure_is_logged_as_a_one_line_warning(
         self, make_agent, caplog, conversation, parser, method
     ):
-        """AMB-10 y AMB-11: el fallo de un modelo deja un ERROR con la acción y el método."""
+        """AMB-10, AMB-11 y revisión de la PR 8: el fallo de un modelo deja un WARNING de una
+        línea con la acción, el método y el tipo de error, sin la traza completa."""
         agent, _ = make_agent(conversation, parser)
 
-        with caplog.at_level(logging.ERROR, logger="ringr_agents.agents.base_agent"):
+        with caplog.at_level(logging.WARNING, logger="ringr_agents.agents.base_agent"):
             agent.handle_turn()
 
-        errors = [r for r in caplog.records if r.levelno == logging.ERROR]
-        assert len(errors) == 1
-        assert "register_reminder" in errors[0].getMessage()
-        assert method in errors[0].getMessage()
+        failures = [r for r in caplog.records if f"falló {method}" in r.getMessage()]
+        assert len(failures) == 1
+        assert failures[0].levelno == logging.WARNING
+        assert "register_reminder" in failures[0].getMessage()
+        assert "RuntimeError: caído" in failures[0].getMessage()
+        assert failures[0].exc_info is None
+        assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
